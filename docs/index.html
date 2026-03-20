@@ -1959,7 +1959,7 @@
                 const container = document.getElementById('tracesContainer');
                 if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
                 if (!config.langfuse.publicKey) {
-                    if (!silent) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div><h3>Configure Langfuse</h3><button class="btn" onclick="window.showPage('settings')" style="margin-top:12px;">Settings</button></div>';
+                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon">📈</div><h3>Configure Langfuse</h3><button class="btn" onclick="window.showPage('settings')" style="margin-top:12px;">Settings</button></div>`;
                     return;
                 }
 
