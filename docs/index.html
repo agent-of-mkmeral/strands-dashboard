@@ -366,6 +366,7 @@
             <button class="nav-tab" data-page="issues" onclick="window.showPage('issues')">📋 Issues</button>
             <button class="nav-tab" data-page="actions" onclick="window.showPage('actions')">⚡ Actions</button>
             <button class="nav-tab" data-page="activity" onclick="window.showPage(\'activity\')">📊 Activity</button>
+            <button class="nav-tab" data-page="wild" onclick="window.showPage('wild')">🌍 Wild</button>
             <button class="nav-tab" data-page="traces" onclick="window.showPage('traces')">📈 Traces</button>
             <button class="nav-tab" data-page="agent" onclick="window.showPage('agent')">🤖 Agent</button>
             <button class="nav-tab" data-page="schedule" onclick="window.showPage('schedule')">📅 Schedule</button>
@@ -435,7 +436,41 @@
                 <div class="actions-list" id="activityInternalList" style="max-height:300px;"></div>
             </div>
             
-            <div id="tracesContainer"></div></div>
+            
+            <div class="page" id="wildPage">
+                <div class="actions-header">
+                    <span>🌍 In the Wild</span>
+                    <span id="wildBadge"></span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;" id="wildOverview">
+                    <div class="card" style="text-align:center;padding:16px;">
+                        <div style="font-size:32px;font-weight:800;" id="wildPRCount">-</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:600;">Open PRs</div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;">
+                        <div style="font-size:32px;font-weight:800;" id="wildIssueCount">-</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:600;">Open Issues</div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;">
+                        <div style="font-size:32px;font-weight:800;" id="wildRepoCount">-</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:600;">Repos</div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;">
+                        <div style="font-size:32px;font-weight:800;" id="wildTotalCount">-</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:600;">Total</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                    <button class="issue-filter-tab active" data-wild-filter="all" onclick="window.wildFilter('all')">All</button>
+                    <button class="issue-filter-tab" data-wild-filter="prs" onclick="window.wildFilter('prs')">🔀 PRs</button>
+                    <button class="issue-filter-tab" data-wild-filter="issues" onclick="window.wildFilter('issues')">🎫 Issues</button>
+                </div>
+                <div id="wildContent">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <div id="tracesContainer"></div></div>
             
             <div class="page" id="agentPage">
                 <h3>🤖 Agent</h3>
@@ -781,6 +816,7 @@
                 if (page === 'issues' && !pagesLoaded.issues) { loadIssues(); pagesLoaded.issues = true; }
                 if (page === 'actions' && !pagesLoaded.actions) { loadActions(); pagesLoaded.actions = true; }
                 if (page === 'activity' && !pagesLoaded.activity) { loadActivity(); pagesLoaded.activity = true; }
+                if (page === 'wild' && !pagesLoaded.wild) { loadWild(); pagesLoaded.wild = true; }
                 if (page === 'traces' && !pagesLoaded.traces) { loadTraces(); pagesLoaded.traces = true; }
                 if (page === 'agent' && !pagesLoaded.agent) { loadAgentConfig(); pagesLoaded.agent = true; }
                 if (page === 'schedule' && !pagesLoaded.schedule) { loadSchedule(); pagesLoaded.schedule = true; }
@@ -938,6 +974,7 @@
                         loadIssues(true),
                         loadActions(true),
                         loadActivity(true),
+                        loadWild(true),
                         loadTraces(true),
                         loadProjectBoard()
                     ]);
@@ -2133,7 +2170,143 @@
             function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
             function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show'; setTimeout(() => t.classList.remove('show'), 3000); }
             
-            // ============ ACTIVITY ============
+            
+            // ============ WILD (In the Wild) ============
+            let wildPRs = [];
+            let wildIssues = [];
+            let wildCurrentFilter = 'all';
+
+            async function loadWild(silent = false) {
+                if (!config.github.token || !config.github.repo) {
+                    document.getElementById('wildContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚙️</div><p>Configure GitHub in settings</p></div>';
+                    return;
+                }
+
+                const container = document.getElementById('wildContent');
+                if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    const owner = config.github.repo.split('/')[0];
+                    const headers = { 'Authorization': 'Bearer ' + config.github.token, 'Accept': 'application/vnd.github+json' };
+
+                    // Excluded owners: the agent and mkmeral
+                    const excludedOwners = [owner.toLowerCase(), 'mkmeral'];
+
+                    // Search for open PRs by agent in public repos
+                    const prQ = 'is:pr is:open author:' + owner + ' is:public';
+                    const prRes = await fetch('https://api.github.com/search/issues?q=' + encodeURIComponent(prQ) + '&per_page=100&sort=updated&order=desc', { headers });
+                    if (!prRes.ok) throw new Error('GitHub API: ' + prRes.status);
+                    const prData = await prRes.json();
+
+                    // Search for open issues by agent in public repos
+                    const issueQ = 'is:issue is:open author:' + owner + ' is:public';
+                    const issueRes = await fetch('https://api.github.com/search/issues?q=' + encodeURIComponent(issueQ) + '&per_page=100&sort=updated&order=desc', { headers });
+                    if (!issueRes.ok) throw new Error('GitHub API: ' + issueRes.status);
+                    const issueData = await issueRes.json();
+
+                    // Filter: exclude repos owned by agent or mkmeral
+                    const isExternalRepo = (item) => {
+                        const repoUrl = item.repository_url || '';
+                        const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                        const repoOwner = repoName.split('/')[0].toLowerCase();
+                        return !excludedOwners.includes(repoOwner);
+                    };
+
+                    wildPRs = (prData.items || []).filter(isExternalRepo);
+                    wildIssues = (issueData.items || []).filter(isExternalRepo);
+
+                    renderWild();
+                    
+                    const total = wildPRs.length + wildIssues.length;
+                    document.getElementById('wildBadge').innerHTML = '<span class="badge">' + total + ' active</span>';
+                } catch (e) {
+                    console.error('Wild load error:', e);
+                    if (!silent) container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>Error: ' + e.message + '</p></div>';
+                }
+            }
+
+            window.wildFilter = function(filter) {
+                wildCurrentFilter = filter;
+                document.querySelectorAll('[data-wild-filter]').forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-wild-filter="' + filter + '"]').classList.add('active');
+                renderWild();
+            };
+
+            function renderWild() {
+                // Update counts
+                const repos = new Set();
+                [...wildPRs, ...wildIssues].forEach(item => {
+                    const repoUrl = item.repository_url || '';
+                    repos.add(repoUrl.replace('https://api.github.com/repos/', ''));
+                });
+                document.getElementById('wildPRCount').textContent = wildPRs.length;
+                document.getElementById('wildIssueCount').textContent = wildIssues.length;
+                document.getElementById('wildRepoCount').textContent = repos.size;
+                document.getElementById('wildTotalCount').textContent = wildPRs.length + wildIssues.length;
+
+                // Build items list based on filter
+                let items = [];
+                if (wildCurrentFilter === 'all') {
+                    items = [...wildPRs.map(x => ({...x, _type: 'pr'})), ...wildIssues.map(x => ({...x, _type: 'issue'}))];
+                } else if (wildCurrentFilter === 'prs') {
+                    items = wildPRs.map(x => ({...x, _type: 'pr'}));
+                } else {
+                    items = wildIssues.map(x => ({...x, _type: 'issue'}));
+                }
+
+                items.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+                const container = document.getElementById('wildContent');
+                if (items.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🎉</div><h3>No open items in the wild</h3><p>The agent has no open PRs or issues in external public repos</p></div>';
+                    return;
+                }
+
+                // Group by repo
+                const byRepo = {};
+                items.forEach(item => {
+                    const repoUrl = item.repository_url || '';
+                    const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                    if (!byRepo[repoName]) byRepo[repoName] = [];
+                    byRepo[repoName].push(item);
+                });
+
+                const sortedRepos = Object.keys(byRepo).sort((a, b) => byRepo[b].length - byRepo[a].length);
+
+                let html = '';
+                for (const repoName of sortedRepos) {
+                    const repoItems = byRepo[repoName];
+                    html += '<div style="margin-bottom:20px;">';
+                    html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;">';
+                    html += '📦 <a href="https://github.com/' + repoName + '" target="_blank" style="color:inherit;text-decoration:none;">' + repoName + '</a>';
+                    html += ' <span class="badge">' + repoItems.length + '</span>';
+                    html += '</div>';
+
+                    for (const item of repoItems) {
+                        const isPR = item._type === 'pr';
+                        const isDraft = item.draft;
+                        const labels = item.labels || [];
+
+                        html += '<div class="action-item" onclick="window.open(\'' + item.html_url + '\', \'_blank\')" style="cursor:pointer;margin-bottom:8px;">';
+                        html += '<div class="action-title">' + (isPR ? '🔀' : '🎫') + ' #' + item.number + ' ' + escapeHtml(item.title) + '</div>';
+                        html += '<div class="action-meta">';
+                        html += '<span class="badge ' + (isDraft ? '' : '') + '">' + (isDraft ? 'Draft' : 'Open') + '</span>';
+                        html += ' • Updated ' + formatDate(item.updated_at);
+                        html += ' • 💬 ' + (item.comments || 0);
+                        for (const l of labels) {
+                            const bg = l.color ? '#' + l.color + '33' : 'rgba(255,255,255,0.1)';
+                            const fg = l.color ? '#' + l.color : 'rgba(255,255,255,0.8)';
+                            html += ' <span style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:' + bg + ';color:' + fg + ';">' + escapeHtml(l.name) + '</span>';
+                        }
+                        html += '</div></div>';
+                    }
+                    html += '</div>';
+                }
+
+                container.innerHTML = html;
+            }
+
+// ============ ACTIVITY ============
             let activityData = { external_events: [], internal_events: [] };
             
             async function loadActivity(silent = false) {
