@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Agent Activity - Open PRs & Issues</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agent Activity">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Agent Activity - Open PRs and Issues in public repos">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000;
+            color: #fff;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+            padding-top: max(24px, env(safe-area-inset-top));
+            padding-left: max(24px, env(safe-area-inset-left));
+            padding-right: max(24px, env(safe-area-inset-right));
+            padding-bottom: max(24px, env(safe-area-inset-bottom));
+        }
+
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .back-link {
+            padding: 10px 18px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+        }
+
+        .refresh-btn {
+            padding: 10px 18px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover { background: rgba(255,255,255,0.08); }
+
+        /* Overview Numbers */
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .overview-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .overview-card:hover {
+            background: rgba(255,255,255,0.06);
+            transform: translateY(-2px);
+        }
+
+        .overview-value {
+            font-size: 42px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            color: #fff;
+        }
+
+        .overview-label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab {
+            padding: 10px 18px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .filter-tab.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+
+        /* Section */
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-count {
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* Item Cards */
+        .item-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+            color: inherit;
+        }
+
+        .item-card:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.15);
+            transform: translateY(-1px);
+        }
+
+        .item-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+
+        .item-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .item-icon.pr { background: rgba(255,255,255,0.08); }
+        .item-icon.issue { background: rgba(255,255,255,0.06); }
+
+        .item-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .item-repo {
+            font-size: 13px;
+            color: rgba(255,255,255,0.4);
+            font-weight: 500;
+        }
+
+        .item-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.7);
+        }
+
+        .badge.open { background: rgba(255,255,255,0.12); color: #fff; }
+        .badge.merged { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+        .badge.draft { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4); border: 1px dashed rgba(255,255,255,0.15); }
+
+        .meta-text {
+            font-size: 13px;
+            color: rgba(255,255,255,0.4);
+        }
+
+        .label-badge {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+        .empty-state h3 { font-size: 20px; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+
+        .settings-section {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .form-group { margin-bottom: 14px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; color: #fff; font-size: 14px; font-family: inherit; }
+        .form-input:focus { outline: none; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+        .form-input::placeholder { color: rgba(255,255,255,0.3); }
+
+        .save-btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            background: #fff;
+            color: #000;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .save-btn:hover { background: rgba(255,255,255,0.9); transform: translateY(-1px); }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 20px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 1000;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        .last-updated {
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+            margin-top: 24px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            .header h1 { font-size: 24px; }
+            .overview-grid { grid-template-columns: repeat(2, 1fr); }
+            .overview-value { font-size: 36px; }
+            .item-title { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>🤖 Agent Activity</h1>
+                <div class="header-actions">
+                    <a href="index.html" class="back-link">← Dashboard</a>
+                    <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="overview-grid" id="overviewGrid">
+            <div class="overview-card"><div class="overview-value" id="totalPRs">-</div><div class="overview-label">Open PRs</div></div>
+            <div class="overview-card"><div class="overview-value" id="totalIssues">-</div><div class="overview-label">Open Issues</div></div>
+            <div class="overview-card"><div class="overview-value" id="totalRepos">-</div><div class="overview-label">Repos</div></div>
+            <div class="overview-card"><div class="overview-value" id="totalItems">-</div><div class="overview-label">Total</div></div>
+        </div>
+
+        <div class="filters" id="filterTabs">
+            <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All</button>
+            <button class="filter-tab" data-filter="prs" onclick="setFilter('prs')">🔀 PRs</button>
+            <button class="filter-tab" data-filter="issues" onclick="setFilter('issues')">🎫 Issues</button>
+        </div>
+
+        <div id="content">
+            <div class="loading"><div class="spinner"></div></div>
+        </div>
+
+        <div id="settingsPanel" style="display:none;">
+            <div class="settings-section">
+                <h3 style="margin-bottom:16px;font-size:18px;">⚙️ Settings</h3>
+                <div class="form-group">
+                    <label class="form-label">GitHub Token</label>
+                    <input type="password" class="form-input" id="tokenInput" placeholder="ghp_...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Agent Username</label>
+                    <input class="form-input" id="usernameInput" placeholder="agent-of-mkmeral" value="agent-of-mkmeral">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Exclude Repos (comma-separated owner/repo)</label>
+                    <input class="form-input" id="excludeInput" placeholder="agent-of-mkmeral/strands-coder-private">
+                </div>
+                <button class="save-btn" onclick="saveSettings()">Save & Load</button>
+            </div>
+        </div>
+
+        <div class="last-updated" id="lastUpdated"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    (function() {
+        let token = localStorage.getItem('activity_gh_token') || localStorage.getItem('gh_token') || '';
+        let username = localStorage.getItem('activity_username') || 'agent-of-mkmeral';
+        let excludeRepos = (localStorage.getItem('activity_exclude') || '').split(',').filter(Boolean);
+        
+        let allPRs = [];
+        let allIssues = [];
+        let currentFilter = 'all';
+
+        // Check URL params
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('token')) { token = params.get('token'); localStorage.setItem('activity_gh_token', token); }
+        if (params.get('user')) { username = params.get('user'); localStorage.setItem('activity_username', username); }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token) {
+                showSettings();
+            } else {
+                loadData();
+            }
+        });
+
+        function showSettings() {
+            document.getElementById('settingsPanel').style.display = 'block';
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('tokenInput').value = token;
+            document.getElementById('usernameInput').value = username;
+            document.getElementById('excludeInput').value = excludeRepos.join(',');
+        }
+
+        window.saveSettings = function() {
+            token = document.getElementById('tokenInput').value.trim();
+            username = document.getElementById('usernameInput').value.trim();
+            excludeRepos = document.getElementById('excludeInput').value.split(',').map(s => s.trim()).filter(Boolean);
+            
+            localStorage.setItem('activity_gh_token', token);
+            localStorage.setItem('activity_username', username);
+            localStorage.setItem('activity_exclude', excludeRepos.join(','));
+            
+            document.getElementById('settingsPanel').style.display = 'none';
+            loadData();
+        };
+
+        window.setFilter = function(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+            render();
+        };
+
+        window.loadData = async function() {
+            if (!token || !username) {
+                showSettings();
+                return;
+            }
+
+            document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            
+            try {
+                const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' };
+                
+                // Search for open PRs created by the agent in public repos
+                const prQuery = `is:pr is:open author:${username} is:public`;
+                const prRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(prQuery)}&per_page=100&sort=updated&order=desc`, { headers });
+                
+                if (!prRes.ok) throw new Error(`GitHub API error: ${prRes.status}`);
+                const prData = await prRes.json();
+                
+                // Search for open issues created by the agent in public repos
+                const issueQuery = `is:issue is:open author:${username} is:public`;
+                const issueRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(issueQuery)}&per_page=100&sort=updated&order=desc`, { headers });
+                
+                if (!issueRes.ok) throw new Error(`GitHub API error: ${issueRes.status}`);
+                const issueData = await issueRes.json();
+                
+                // Filter out excluded repos and agent's own repos
+                const isExcluded = (item) => {
+                    const repoUrl = item.repository_url || '';
+                    const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                    
+                    // Exclude agent's own repos
+                    if (repoName.startsWith(`${username}/`)) return true;
+                    
+                    // Exclude user's repos (mkmeral's repos)
+                    // This is configurable via excludeRepos
+                    for (const excluded of excludeRepos) {
+                        if (repoName === excluded || repoName.startsWith(excluded + '/')) return true;
+                    }
+                    
+                    return false;
+                };
+                
+                allPRs = (prData.items || []).filter(item => !isExcluded(item));
+                allIssues = (issueData.items || []).filter(item => !isExcluded(item));
+                
+                render();
+                
+                document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+                
+            } catch (e) {
+                console.error('Load error:', e);
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">⚠️</div>
+                        <h3>Error loading data</h3>
+                        <p>${escapeHtml(e.message)}</p>
+                        <button class="refresh-btn" onclick="showSettings()" style="margin-top:16px;">Check Settings</button>
+                    </div>
+                `;
+                window.showSettings = showSettings;
+            }
+        };
+
+        function render() {
+            // Update overview numbers
+            const repos = new Set();
+            [...allPRs, ...allIssues].forEach(item => {
+                const repoUrl = item.repository_url || '';
+                repos.add(repoUrl.replace('https://api.github.com/repos/', ''));
+            });
+            
+            document.getElementById('totalPRs').textContent = allPRs.length;
+            document.getElementById('totalIssues').textContent = allIssues.length;
+            document.getElementById('totalRepos').textContent = repos.size;
+            document.getElementById('totalItems').textContent = allPRs.length + allIssues.length;
+            
+            // Filter items
+            let items = [];
+            if (currentFilter === 'all') {
+                items = [...allPRs.map(pr => ({...pr, _type: 'pr'})), ...allIssues.map(issue => ({...issue, _type: 'issue'}))];
+            } else if (currentFilter === 'prs') {
+                items = allPRs.map(pr => ({...pr, _type: 'pr'}));
+            } else {
+                items = allIssues.map(issue => ({...issue, _type: 'issue'}));
+            }
+            
+            // Sort by updated_at descending
+            items.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            
+            // Group by repo
+            const byRepo = {};
+            items.forEach(item => {
+                const repoUrl = item.repository_url || '';
+                const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                if (!byRepo[repoName]) byRepo[repoName] = [];
+                byRepo[repoName].push(item);
+            });
+            
+            const content = document.getElementById('content');
+            
+            if (items.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🎉</div>
+                        <h3>No open items</h3>
+                        <p>The agent has no open PRs or issues in public repos</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            // Render grouped by repo
+            const sortedRepos = Object.keys(byRepo).sort((a, b) => byRepo[b].length - byRepo[a].length);
+            
+            for (const repoName of sortedRepos) {
+                const repoItems = byRepo[repoName];
+                html += `
+                    <div class="section">
+                        <div class="section-header">
+                            📦 <a href="https://github.com/${repoName}" target="_blank" style="color:inherit;text-decoration:none;">${escapeHtml(repoName)}</a>
+                            <span class="section-count">${repoItems.length}</span>
+                        </div>
+                `;
+                
+                for (const item of repoItems) {
+                    const isPR = item._type === 'pr';
+                    const isDraft = item.draft;
+                    const labels = item.labels || [];
+                    
+                    html += `
+                        <a class="item-card" href="${item.html_url}" target="_blank">
+                            <div class="item-top">
+                                <div class="item-icon ${isPR ? 'pr' : 'issue'}">${isPR ? '🔀' : '🎫'}</div>
+                                <div style="flex:1;min-width:0;">
+                                    <div class="item-title">#${item.number} ${escapeHtml(item.title)}</div>
+                                    <div class="item-repo">${escapeHtml(repoName)}</div>
+                                </div>
+                            </div>
+                            <div class="item-meta">
+                                <span class="badge ${isDraft ? 'draft' : 'open'}">${isDraft ? 'Draft' : 'Open'}</span>
+                                <span class="meta-text">Updated ${formatDate(item.updated_at)}</span>
+                                <span class="meta-text">💬 ${item.comments || 0}</span>
+                                ${labels.map(l => `<span class="label-badge" style="background:${l.color ? '#' + l.color + '33' : 'rgba(255,255,255,0.1)'}; color:${l.color ? '#' + l.color : 'rgba(255,255,255,0.8)'};">${escapeHtml(l.name)}</span>`).join('')}
+                            </div>
+                        </a>
+                    `;
+                }
+                
+                html += '</div>';
+            }
+            
+            content.innerHTML = html;
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            const diff = (Date.now() - new Date(d)) / 1000;
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+            return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+        }
+
+        function escapeHtml(t) {
+            if (!t) return '';
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show';
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+    })();
+    </script>
+</body>
+</html>
