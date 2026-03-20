@@ -9,29 +9,49 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Agent Activity">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#09090b">
     <meta name="description" content="Agent Activity - Open PRs and Issues in public repos">
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
+        :root {
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-dim: rgba(99, 102, 241, 0.15);
+            --success: #34d399;
+            --danger: #f87171;
+            --bg: #09090b;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(255, 255, 255, 0.14);
+            --text: #fafafa;
+            --text-secondary: rgba(255, 255, 255, 0.55);
+            --text-muted: rgba(255, 255, 255, 0.35);
+            --radius: 14px;
+            --radius-sm: 10px;
+            --radius-lg: 20px;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #000;
-            color: #fff;
+            background: var(--bg);
+            color: var(--text);
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
             min-height: 100vh;
         }
 
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 24px;
             padding-top: max(24px, env(safe-area-inset-top));
@@ -54,140 +74,143 @@
         }
 
         .header h1 {
-            font-size: 28px;
-            font-weight: 800;
-            color: #fff;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.02em;
         }
 
         .header-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
         }
 
         .back-link {
-            padding: 10px 18px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.7);
-            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 13px;
             font-weight: 600;
             text-decoration: none;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
         .back-link:hover {
-            background: rgba(255,255,255,0.08);
-            color: #fff;
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
         }
 
         .refresh-btn {
-            padding: 10px 18px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
-        .refresh-btn:hover { background: rgba(255,255,255,0.08); }
+        .refresh-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 
         /* Overview Numbers */
         .overview-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
             margin-bottom: 32px;
         }
 
         .overview-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            padding: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 16px;
             text-align: center;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
         .overview-card:hover {
-            background: rgba(255,255,255,0.06);
-            transform: translateY(-2px);
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
         }
 
         .overview-value {
-            font-size: 42px;
+            font-size: 36px;
             font-weight: 800;
-            margin-bottom: 6px;
-            color: #fff;
+            margin-bottom: 4px;
+            color: var(--text);
+            letter-spacing: -0.03em;
         }
 
         .overview-label {
-            font-size: 13px;
-            color: rgba(255,255,255,0.5);
+            font-size: 11px;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.08em;
             font-weight: 600;
         }
 
         /* Filters */
         .filters {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 20px;
             flex-wrap: wrap;
         }
 
         .filter-tab {
-            padding: 10px 18px;
-            border-radius: 10px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.6);
-            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.03);
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
-        .filter-tab:hover { background: rgba(255,255,255,0.08); color: #fff; }
-        .filter-tab.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+        .filter-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+        .filter-tab.active { background: var(--accent-dim); border-color: rgba(99, 102, 241, 0.2); color: var(--accent-light); }
 
         /* Section */
         .section {
-            margin-bottom: 32px;
+            margin-bottom: 28px;
         }
 
         .section-header {
-            font-size: 20px;
+            font-size: 15px;
             font-weight: 700;
-            margin-bottom: 16px;
-            color: rgba(255,255,255,0.9);
+            margin-bottom: 14px;
+            color: var(--text-secondary);
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
         .section-count {
-            padding: 4px 10px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.1);
-            font-size: 13px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.06);
+            font-size: 12px;
             font-weight: 700;
-            color: rgba(255,255,255,0.8);
+            color: var(--text-muted);
         }
 
         /* Item Cards */
         .item-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px;
-            padding: 18px 20px;
-            margin-bottom: 12px;
-            transition: all 0.2s;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
             cursor: pointer;
             text-decoration: none;
             display: block;
@@ -195,8 +218,8 @@
         }
 
         .item-card:hover {
-            background: rgba(255,255,255,0.06);
-            border-color: rgba(255,255,255,0.15);
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
             transform: translateY(-1px);
         }
 
@@ -208,36 +231,36 @@
         }
 
         .item-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
+            width: 34px;
+            height: 34px;
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 16px;
             flex-shrink: 0;
         }
 
-        .item-icon.pr { background: rgba(255,255,255,0.08); }
-        .item-icon.issue { background: rgba(255,255,255,0.06); }
+        .item-icon.pr { background: var(--accent-dim); }
+        .item-icon.issue { background: rgba(255,255,255,0.05); }
 
         .item-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
-            color: #fff;
-            line-height: 1.4;
-            margin-bottom: 4px;
+            color: var(--text);
+            line-height: 1.5;
+            margin-bottom: 3px;
         }
 
         .item-repo {
-            font-size: 13px;
-            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+            color: var(--text-muted);
             font-weight: 500;
         }
 
         .item-meta {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
             align-items: center;
         }
@@ -245,30 +268,32 @@
         .badge {
             display: inline-flex;
             align-items: center;
-            padding: 5px 10px;
-            border-radius: 8px;
-            font-size: 12px;
+            padding: 4px 9px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
             font-weight: 600;
-            background: rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.7);
+            background: rgba(255,255,255,0.06);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
-        .badge.open { background: rgba(255,255,255,0.12); color: #fff; }
-        .badge.merged { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
-        .badge.draft { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4); border: 1px dashed rgba(255,255,255,0.15); }
+        .badge.open { background: var(--accent-dim); color: var(--accent-light); }
+        .badge.merged { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+        .badge.draft { background: rgba(255,255,255,0.03); color: var(--text-muted); border: 1px dashed rgba(255,255,255,0.12); }
 
         .meta-text {
-            font-size: 13px;
-            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+            color: var(--text-muted);
         }
 
         .label-badge {
-            padding: 3px 8px;
+            padding: 3px 7px;
             border-radius: 6px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
-            background: rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.08);
+            color: var(--text-secondary);
         }
 
         /* Loading */
@@ -280,10 +305,10 @@
         }
 
         .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: #fff;
+            width: 28px;
+            height: 28px;
+            border: 2px solid rgba(255,255,255,0.08);
+            border-top-color: var(--accent-light);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -293,73 +318,73 @@
         .empty-state {
             text-align: center;
             padding: 60px 24px;
-            color: rgba(255,255,255,0.5);
+            color: var(--text-muted);
         }
 
         .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
-        .empty-state h3 { font-size: 20px; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+        .empty-state h3 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
 
         .settings-section {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
             padding: 24px;
             margin-bottom: 24px;
         }
 
         .form-group { margin-bottom: 14px; }
-        .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
-        .form-input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; color: #fff; font-size: 14px; font-family: inherit; }
-        .form-input:focus { outline: none; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
-        .form-input::placeholder { color: rgba(255,255,255,0.3); }
+        .form-label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+        .form-input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; color: var(--text); font-size: 14px; font-family: inherit; transition: all 0.2s ease; }
+        .form-input:focus { outline: none; border-color: var(--accent); background: rgba(99, 102, 241, 0.04); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .form-input::placeholder { color: var(--text-muted); }
 
         .save-btn {
             padding: 12px 24px;
-            border-radius: 12px;
+            border-radius: var(--radius);
             border: none;
-            background: #fff;
-            color: #000;
+            background: var(--accent);
+            color: #fff;
             font-size: 14px;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
-        .save-btn:hover { background: rgba(255,255,255,0.9); transform: translateY(-1px); }
+        .save-btn:hover { background: var(--accent-light); box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3); }
 
         .toast {
             position: fixed;
             bottom: 24px;
             right: 24px;
-            padding: 14px 20px;
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 500;
-            color: #fff;
+            padding: 12px 18px;
+            background: var(--accent-dim);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-light);
             transform: translateY(100px);
             opacity: 0;
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 1000;
         }
 
         .toast.show { transform: translateY(0); opacity: 1; }
 
         .last-updated {
-            font-size: 12px;
-            color: rgba(255,255,255,0.3);
+            font-size: 11px;
+            color: var(--text-muted);
             margin-top: 24px;
             text-align: center;
         }
 
         @media (max-width: 768px) {
             .container { padding: 16px; }
-            .header h1 { font-size: 24px; }
+            .header h1 { font-size: 22px; }
             .overview-grid { grid-template-columns: repeat(2, 1fr); }
-            .overview-value { font-size: 36px; }
-            .item-title { font-size: 15px; }
+            .overview-value { font-size: 32px; }
+            .item-title { font-size: 14px; }
         }
     </style>
 </head>
@@ -394,7 +419,7 @@
 
         <div id="settingsPanel" style="display:none;">
             <div class="settings-section">
-                <h3 style="margin-bottom:16px;font-size:18px;">⚙️ Settings</h3>
+                <h3 style="margin-bottom:16px;font-size:16px;letter-spacing:-0.01em;">⚙️ Settings</h3>
                 <div class="form-group">
                     <label class="form-label">GitHub Token</label>
                     <input type="password" class="form-input" id="tokenInput" placeholder="ghp_...">
@@ -431,7 +456,7 @@
         if (params.get('token')) { token = params.get('token'); localStorage.setItem('activity_gh_token', token); }
         if (params.get('user')) { username = params.get('user'); localStorage.setItem('activity_username', username); }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', function() {
             if (!token) {
                 showSettings();
             } else {
@@ -450,7 +475,7 @@
         window.saveSettings = function() {
             token = document.getElementById('tokenInput').value.trim();
             username = document.getElementById('usernameInput').value.trim();
-            excludeRepos = document.getElementById('excludeInput').value.split(',').map(s => s.trim()).filter(Boolean);
+            excludeRepos = document.getElementById('excludeInput').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
             
             localStorage.setItem('activity_gh_token', token);
             localStorage.setItem('activity_username', username);
@@ -462,8 +487,8 @@
 
         window.setFilter = function(filter) {
             currentFilter = filter;
-            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+            document.querySelectorAll('.filter-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelector('[data-filter="' + filter + '"]').classList.add('active');
             render();
         };
 
@@ -476,65 +501,57 @@
             document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             
             try {
-                const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' };
+                var headers = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' };
                 
                 // Search for open PRs created by the agent in public repos
-                const prQuery = `is:pr is:open author:${username} is:public`;
-                const prRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(prQuery)}&per_page=100&sort=updated&order=desc`, { headers });
+                var prQuery = 'is:pr is:open author:' + username + ' is:public';
+                var prRes = await fetch('https://api.github.com/search/issues?q=' + encodeURIComponent(prQuery) + '&per_page=100&sort=updated&order=desc', { headers: headers });
                 
-                if (!prRes.ok) throw new Error(`GitHub API error: ${prRes.status}`);
-                const prData = await prRes.json();
+                if (!prRes.ok) throw new Error('GitHub API error: ' + prRes.status);
+                var prData = await prRes.json();
                 
                 // Search for open issues created by the agent in public repos
-                const issueQuery = `is:issue is:open author:${username} is:public`;
-                const issueRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(issueQuery)}&per_page=100&sort=updated&order=desc`, { headers });
+                var issueQuery = 'is:issue is:open author:' + username + ' is:public';
+                var issueRes = await fetch('https://api.github.com/search/issues?q=' + encodeURIComponent(issueQuery) + '&per_page=100&sort=updated&order=desc', { headers: headers });
                 
-                if (!issueRes.ok) throw new Error(`GitHub API error: ${issueRes.status}`);
-                const issueData = await issueRes.json();
+                if (!issueRes.ok) throw new Error('GitHub API error: ' + issueRes.status);
+                var issueData = await issueRes.json();
                 
                 // Filter out excluded repos and agent's own repos
-                const isExcluded = (item) => {
-                    const repoUrl = item.repository_url || '';
-                    const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                var isExcluded = function(item) {
+                    var repoUrl = item.repository_url || '';
+                    var repoName = repoUrl.replace('https://api.github.com/repos/', '');
                     
                     // Exclude agent's own repos
-                    if (repoName.startsWith(`${username}/`)) return true;
+                    if (repoName.startsWith(username + '/')) return true;
                     
-                    // Exclude user's repos (mkmeral's repos)
-                    // This is configurable via excludeRepos
-                    for (const excluded of excludeRepos) {
-                        if (repoName === excluded || repoName.startsWith(excluded + '/')) return true;
+                    // Exclude user's repos
+                    for (var i = 0; i < excludeRepos.length; i++) {
+                        if (repoName === excludeRepos[i] || repoName.startsWith(excludeRepos[i] + '/')) return true;
                     }
                     
                     return false;
                 };
                 
-                allPRs = (prData.items || []).filter(item => !isExcluded(item));
-                allIssues = (issueData.items || []).filter(item => !isExcluded(item));
+                allPRs = (prData.items || []).filter(function(item) { return !isExcluded(item); });
+                allIssues = (issueData.items || []).filter(function(item) { return !isExcluded(item); });
                 
                 render();
                 
-                document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+                document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleString();
                 
             } catch (e) {
                 console.error('Load error:', e);
-                document.getElementById('content').innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">⚠️</div>
-                        <h3>Error loading data</h3>
-                        <p>${escapeHtml(e.message)}</p>
-                        <button class="refresh-btn" onclick="showSettings()" style="margin-top:16px;">Check Settings</button>
-                    </div>
-                `;
+                document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><h3>Error loading data</h3><p>' + escapeHtml(e.message) + '</p><button class="refresh-btn" onclick="showSettings()" style="margin-top:16px;">Check Settings</button></div>';
                 window.showSettings = showSettings;
             }
         };
 
         function render() {
             // Update overview numbers
-            const repos = new Set();
-            [...allPRs, ...allIssues].forEach(item => {
-                const repoUrl = item.repository_url || '';
+            var repos = new Set();
+            allPRs.concat(allIssues).forEach(function(item) {
+                var repoUrl = item.repository_url || '';
                 repos.add(repoUrl.replace('https://api.github.com/repos/', ''));
             });
             
@@ -544,77 +561,72 @@
             document.getElementById('totalItems').textContent = allPRs.length + allIssues.length;
             
             // Filter items
-            let items = [];
+            var items = [];
             if (currentFilter === 'all') {
-                items = [...allPRs.map(pr => ({...pr, _type: 'pr'})), ...allIssues.map(issue => ({...issue, _type: 'issue'}))];
+                items = allPRs.map(function(pr) { return Object.assign({}, pr, {_type: 'pr'}); }).concat(allIssues.map(function(issue) { return Object.assign({}, issue, {_type: 'issue'}); }));
             } else if (currentFilter === 'prs') {
-                items = allPRs.map(pr => ({...pr, _type: 'pr'}));
+                items = allPRs.map(function(pr) { return Object.assign({}, pr, {_type: 'pr'}); });
             } else {
-                items = allIssues.map(issue => ({...issue, _type: 'issue'}));
+                items = allIssues.map(function(issue) { return Object.assign({}, issue, {_type: 'issue'}); });
             }
             
             // Sort by updated_at descending
-            items.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            items.sort(function(a, b) { return new Date(b.updated_at) - new Date(a.updated_at); });
             
             // Group by repo
-            const byRepo = {};
-            items.forEach(item => {
-                const repoUrl = item.repository_url || '';
-                const repoName = repoUrl.replace('https://api.github.com/repos/', '');
+            var byRepo = {};
+            items.forEach(function(item) {
+                var repoUrl = item.repository_url || '';
+                var repoName = repoUrl.replace('https://api.github.com/repos/', '');
                 if (!byRepo[repoName]) byRepo[repoName] = [];
                 byRepo[repoName].push(item);
             });
             
-            const content = document.getElementById('content');
+            var content = document.getElementById('content');
             
             if (items.length === 0) {
-                content.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">🎉</div>
-                        <h3>No open items</h3>
-                        <p>The agent has no open PRs or issues in public repos</p>
-                    </div>
-                `;
+                content.innerHTML = '<div class="empty-state"><div class="icon">🎉</div><h3>No open items</h3><p>The agent has no open PRs or issues in public repos</p></div>';
                 return;
             }
             
-            let html = '';
+            var html = '';
             
             // Render grouped by repo
-            const sortedRepos = Object.keys(byRepo).sort((a, b) => byRepo[b].length - byRepo[a].length);
+            var sortedRepos = Object.keys(byRepo).sort(function(a, b) { return byRepo[b].length - byRepo[a].length; });
             
-            for (const repoName of sortedRepos) {
-                const repoItems = byRepo[repoName];
-                html += `
-                    <div class="section">
-                        <div class="section-header">
-                            📦 <a href="https://github.com/${repoName}" target="_blank" style="color:inherit;text-decoration:none;">${escapeHtml(repoName)}</a>
-                            <span class="section-count">${repoItems.length}</span>
-                        </div>
-                `;
+            for (var r = 0; r < sortedRepos.length; r++) {
+                var repoName = sortedRepos[r];
+                var repoItems = byRepo[repoName];
+                html += '<div class="section">';
+                html += '<div class="section-header">';
+                html += '📦 <a href="https://github.com/' + repoName + '" target="_blank" style="color:inherit;text-decoration:none;">' + escapeHtml(repoName) + '</a>';
+                html += ' <span class="section-count">' + repoItems.length + '</span>';
+                html += '</div>';
                 
-                for (const item of repoItems) {
-                    const isPR = item._type === 'pr';
-                    const isDraft = item.draft;
-                    const labels = item.labels || [];
+                for (var i = 0; i < repoItems.length; i++) {
+                    var item = repoItems[i];
+                    var isPR = item._type === 'pr';
+                    var isDraft = item.draft;
+                    var labels = item.labels || [];
                     
-                    html += `
-                        <a class="item-card" href="${item.html_url}" target="_blank">
-                            <div class="item-top">
-                                <div class="item-icon ${isPR ? 'pr' : 'issue'}">${isPR ? '🔀' : '🎫'}</div>
-                                <div style="flex:1;min-width:0;">
-                                    <div class="item-title">#${item.number} ${escapeHtml(item.title)}</div>
-                                    <div class="item-repo">${escapeHtml(repoName)}</div>
-                                </div>
-                            </div>
-                            <div class="item-meta">
-                                <span class="badge ${isDraft ? 'draft' : 'open'}">${isDraft ? 'Draft' : 'Open'}</span>
-                                <span class="meta-text">Updated ${formatDate(item.updated_at)}</span>
-                                <span class="meta-text">💬 ${item.comments || 0}</span>
-                                ${labels.map(l => `<span class="label-badge" style="background:${l.color ? '#' + l.color + '33' : 'rgba(255,255,255,0.1)'}; color:${l.color ? '#' + l.color : 'rgba(255,255,255,0.8)'};">${escapeHtml(l.name)}</span>`).join('')}
-                            </div>
-                        </a>
-                    `;
+                    html += '<a class="item-card" href="' + item.html_url + '" target="_blank">';
+                    html += '<div class="item-top">';
+                    html += '<div class="item-icon ' + (isPR ? 'pr' : 'issue') + '">' + (isPR ? '🔀' : '🎫') + '</div>';
+                    html += '<div style="flex:1;min-width:0;">';
+                    html += '<div class="item-title">#' + item.number + ' ' + escapeHtml(item.title) + '</div>';
+                    html += '<div class="item-repo">' + escapeHtml(repoName) + '</div>';
+                    html += '</div></div>';
+                    html += '<div class="item-meta">';
+                    html += '<span class="badge ' + (isDraft ? 'draft' : 'open') + '">' + (isDraft ? 'Draft' : 'Open') + '</span>';
+                    html += '<span class="meta-text">Updated ' + formatDate(item.updated_at) + '</span>';
+                    html += '<span class="meta-text">💬 ' + (item.comments || 0) + '</span>';
+                    for (var j = 0; j < labels.length; j++) {
+                        var l = labels[j];
+                        var bg = l.color ? '#' + l.color + '33' : 'rgba(255,255,255,0.08)';
+                        var fg = l.color ? '#' + l.color : 'rgba(255,255,255,0.7)';
+                        html += '<span class="label-badge" style="background:' + bg + '; color:' + fg + ';">' + escapeHtml(l.name) + '</span>';
+                    }
+                    html += '</div></a>';
                 }
                 
                 html += '</div>';
@@ -625,26 +637,26 @@
 
         function formatDate(d) {
             if (!d) return '-';
-            const diff = (Date.now() - new Date(d)) / 1000;
+            var diff = (Date.now() - new Date(d)) / 1000;
             if (diff < 60) return 'just now';
-            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-            if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
             return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
         }
 
         function escapeHtml(t) {
             if (!t) return '';
-            const d = document.createElement('div');
+            var d = document.createElement('div');
             d.textContent = t;
             return d.innerHTML;
         }
 
         function showToast(msg) {
-            const t = document.getElementById('toast');
+            var t = document.getElementById('toast');
             t.textContent = msg;
             t.className = 'toast show';
-            setTimeout(() => t.classList.remove('show'), 3000);
+            setTimeout(function() { t.classList.remove('show'); }, 3000);
         }
     })();
     </script>
