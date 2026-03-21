@@ -1804,7 +1804,7 @@
                     const actionStatus = getActionStatus(issue.number);
 
                     return `
-                        <div class="card clickable" onclick="window.openIssueDetail(${issue.number}); updateUrl('issue', ${issue.number});">
+                        <div class="card clickable" onclick="window.openIssueDetail(${issue.number}); window.updateUrl('issue', ${issue.number});">
                             <div style="display:flex;gap:14px;margin-bottom:14px;">
                                 <img class="thread-avatar" src="${issue.user.avatar_url}">
                                 <div style="flex:1;">
@@ -1868,7 +1868,7 @@
                 return names[event] || event;
             }
 
-            function updateUrl(type, id) {
+            window.updateUrl = function(type, id) {
                 const url = new URL(window.location);
                 url.searchParams.set(type, id);
                 window.history.pushState({}, '', url);
@@ -2086,7 +2086,7 @@
                     const displayTitle = action.display_title || '';
                     const truncTitle = displayTitle.length > 60 ? displayTitle.substring(0, 60) + '…' : displayTitle;
                     return `
-                        <div class="action-item ${currentAction?.id === action.id ? 'selected' : ''}" onclick="window.selectAction(${action.id}); updateUrl('action', ${action.id});">
+                        <div class="action-item ${currentAction?.id === action.id ? 'selected' : ''}" onclick="window.selectAction(${action.id}); window.updateUrl('action', ${action.id});">
                             <div class="action-title">
                                 <span class="status-dot ${statusClass}"></span>
                                 ${truncTitle || `#${action.run_number}`}
