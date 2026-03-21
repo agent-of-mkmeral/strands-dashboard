@@ -198,8 +198,23 @@
         .action-item.selected { border-left: 2px solid var(--accent); }
         .action-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
         .action-meta { font-size: 12px; color: var(--text-muted); }
+        .action-display-title { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .action-event-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); font-weight: 500; }
+        .step-container { margin-bottom: 2px; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; }
+        .step-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background 0.15s; background: rgba(255,255,255,0.02); }
+        .step-header:hover { background: rgba(255,255,255,0.05); }
+        .step-header.expanded { background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .step-icon { font-size: 14px; flex-shrink: 0; }
+        .step-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+        .step-chevron { font-size: 10px; color: rgba(255,255,255,0.3); transition: transform 0.2s; }
+        .step-chevron.open { transform: rotate(90deg); }
+        .step-body { display: none; padding: 14px 16px; background: rgba(0,0,0,0.15); font-family: 'SF Mono', monospace; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); max-height: 400px; overflow-y: auto; }
+        .step-body.open { display: block; }
+        .step-duration { font-size: 11px; color: rgba(255,255,255,0.3); font-family: 'SF Mono', monospace; }
+        .action-run-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: rgba(255,255,255,0.4); text-decoration: none; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); transition: all 0.15s; margin-top: 8px; }
+        .action-run-link:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
 
-        .logs-viewer { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; max-height: 500px; }
+        .logs-viewer { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; max-height: 600px; }
         .logs-content { flex: 1; overflow-y: auto; padding: 16px 20px; font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace; font-size: 12px; line-height: 1.8; background: rgba(0,0,0,0.2); }
         .log-line { padding: 2px 0; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); }
         .log-line.error { color: var(--danger); font-weight: 500; }
@@ -1501,16 +1516,43 @@
                 const issueActions = actions.filter(a => extractIssueNum(a) === issueNum);
                 if (!issueActions.length) return null;
                 const running = issueActions.find(a => a.status === 'in_progress' || a.status === 'queued');
-                if (running) return { text: 'Running' };
+                if (running) {
+                    const evtName = formatEventName(running.event);
+                    return { text: `⏳ Running (${evtName})` };
+                }
                 const latest = issueActions[0];
-                if (latest.conclusion === 'success') return { text: 'Done' };
-                if (latest.conclusion === 'failure') return { text: 'Failed' };
-                return { text: `${issueActions.length}` };
+                const count = issueActions.length;
+                const suffix = count > 1 ? ` · ${count} runs` : '';
+                if (latest.conclusion === 'success') return { text: `✅ Done${suffix}` };
+                if (latest.conclusion === 'failure') return { text: `❌ Failed${suffix}` };
+                return { text: `${count} runs` };
             }
 
             function extractIssueNum(action) {
                 const match = action.display_title?.match(/#(\d+)/) || action.head_commit?.message?.match(/#(\d+)/);
                 return match ? parseInt(match[1]) : null;
+            }
+
+            function getEventIcon(event) {
+                const icons = {
+                    'issues': '📋', 'issue_comment': '💬', 'pull_request': '🔀',
+                    'pull_request_review': '✅', 'pull_request_review_comment': '💬',
+                    'discussion': '💭', 'discussion_comment': '💬',
+                    'workflow_dispatch': '▶️', 'schedule': '⏰',
+                    'repository_dispatch': '📡', 'push': '📦'
+                };
+                return icons[event] || '⚡';
+            }
+
+            function formatEventName(event) {
+                const names = {
+                    'issues': 'Issue', 'issue_comment': 'Comment', 'pull_request': 'PR',
+                    'pull_request_review': 'Review', 'pull_request_review_comment': 'Review comment',
+                    'discussion': 'Discussion', 'discussion_comment': 'Disc. comment',
+                    'workflow_dispatch': 'Manual', 'schedule': 'Scheduled',
+                    'repository_dispatch': 'Dispatch', 'push': 'Push'
+                };
+                return names[event] || event;
             }
 
             function updateUrl(type, id) {
@@ -1727,13 +1769,20 @@
                     const isRunning = action.status === 'in_progress' || action.status === 'queued';
                     const statusClass = isRunning ? 'running' : action.conclusion === 'success' ? 'success' : 'failure';
                     const issueNum = extractIssueNum(action);
+                    const eventIcon = getEventIcon(action.event);
+                    const displayTitle = action.display_title || '';
+                    const truncTitle = displayTitle.length > 60 ? displayTitle.substring(0, 60) + '…' : displayTitle;
                     return `
                         <div class="action-item ${currentAction?.id === action.id ? 'selected' : ''}" onclick="window.selectAction(${action.id}); updateUrl('action', ${action.id});">
                             <div class="action-title">
                                 <span class="status-dot ${statusClass}"></span>
-                                #${action.run_number} ${issueNum ? `<span style="color:rgba(255,255,255,0.6);font-size:13px;">#${issueNum}</span>` : ''}
+                                ${truncTitle || `#${action.run_number}`}
+                                ${isRunning ? '<span style="margin-left:6px;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.5px;">LIVE</span>' : ''}
                             </div>
-                            <div class="action-meta">${action.head_branch} · ${formatDate(action.created_at)} ${isRunning ? '<span style="margin-left:6px;color:#fff;">LIVE</span>' : ''}</div>
+                            <div class="action-meta">
+                                <span class="action-event-badge">${eventIcon} ${formatEventName(action.event)}</span>
+                                · #${action.run_number} · ${action.head_branch} · ${formatDate(action.created_at)}
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -1750,7 +1799,11 @@
                 Array.from(document.querySelectorAll('.action-item')).find(el => el.textContent.includes(`#${currentAction.run_number}`))?.classList.add('selected');
 
                 const issueNum = extractIssueNum(currentAction);
-                document.getElementById('logsTitle').textContent = `#${currentAction.run_number}${issueNum ? ` (#${issueNum})` : ''}`;
+                const eventIcon = getEventIcon(currentAction.event);
+                const evtName = formatEventName(currentAction.event);
+                const dispTitle = currentAction.display_title || '';
+                const shortTitle = dispTitle.length > 50 ? dispTitle.substring(0, 50) + '…' : dispTitle;
+                document.getElementById('logsTitle').innerHTML = `${eventIcon} ${shortTitle || '#' + currentAction.run_number} <span style="font-weight:400;font-size:12px;color:rgba(255,255,255,0.4);margin-left:8px;">#${currentAction.run_number} · ${evtName}</span>`;
                 document.getElementById('logsContent').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
                 
                 const isRunning = currentAction.status === 'in_progress' || currentAction.status === 'queued';
@@ -1769,12 +1822,18 @@
                     const jobs = (await (await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${currentAction.id}/jobs`, { headers: { 'Authorization': `Bearer ${config.github.token}` }})).json()).jobs || [];
                     if (!jobs.length) return document.getElementById('logsContent').innerHTML = '<div class="empty-state"><p>No jobs</p></div>';
 
-                    const logsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/jobs/${jobs[0].id}/logs`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
-                    if (!logsRes.ok) return renderJobSteps(jobs[0]);
+                    const job = jobs[0];
+                    const logsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/jobs/${job.id}/logs`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                    if (!logsRes.ok) return renderJobSteps(job);
                     
                     const fullLogs = await logsRes.text();
                     const cleanedLogs = cleanLogs(fullLogs);
                     
+                    // Extract prompt from summary
+                    const promptMatch = cleanedLogs.match(/\*\*Prompt:\*\*\s*```\s*([\s\S]*?)```/);
+                    const resultMatch = cleanedLogs.match(/\*\*Result:\*\*\s*```\s*([\s\S]*?)```/);
+                    
+                    // Extract agent section
                     const agentStart = cleanedLogs.match(/Agent created with \d+ tools/);
                     const agentEnd = cleanedLogs.match(/✅ Agent completed successfully[\s\S]*?Post job cleanup/);
                     let agentLogs = cleanedLogs;
@@ -1783,17 +1842,101 @@
                         const endIdx = cleanedLogs.indexOf(agentEnd[0]) + agentEnd[0].length;
                         agentLogs = cleanedLogs.slice(startIdx, endIdx);
                     }
-                    
-                    let summaryHtml = '';
-                    const summaryMatch = cleanedLogs.match(/## Agent\s+([\s\S]*?)(?=\n##|Post job cleanup|$)/);
-                    if (summaryMatch) {
-                        summaryHtml = `<div class="summary-card"><div class="summary-title">🤖 Summary</div><div class="markdown-body" style="font-size:14px;">${marked.parse(summaryMatch[1].trim())}</div></div>`;
+
+                    // Extract setup info
+                    const toolsMatch = cleanedLogs.match(/Agent created with (\d+) tools and (\d+) plugins/);
+                    const sessionMatch = cleanedLogs.match(/\*\*Session:\*\* `([^`]+)`/);
+                    const kbMatch = cleanedLogs.match(/\*\*Knowledge Base:\*\* `([^`]+)`/);
+                    const duration = job.completed_at && job.started_at ? formatDuration(new Date(job.completed_at) - new Date(job.started_at)) : '...';
+
+                    // Build step-based view
+                    let html = '';
+
+                    // Run metadata bar
+                    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:12px;color:rgba(255,255,255,0.4);">
+                        <span>⏱ ${duration}</span>
+                        ${toolsMatch ? `<span>· 🔧 ${toolsMatch[1]} tools</span>` : ''}
+                        ${sessionMatch ? `<span>· 📎 ${sessionMatch[1]}</span>` : ''}
+                        ${kbMatch ? `<span>· 🧠 KB</span>` : ''}
+                        <a href="${currentAction.html_url}" target="_blank" class="action-run-link" style="margin:0;padding:0;background:none;">↗ GitHub</a>
+                    </div>`;
+
+                    // Step 1: Request (Prompt)
+                    const promptText = promptMatch ? promptMatch[1].trim() : '(loading...)';
+                    html += buildStep('📥', 'Request', promptText, true);
+
+                    // Step 2: Response (Result)
+                    const resultText = resultMatch ? resultMatch[1].trim() : '(loading...)';
+                    html += buildStep('📤', 'Response', resultText, true);
+
+                    // Step 3: Full Logs (collapsed by default)
+                    const logLines = agentLogs.split('\n').filter(l => l.trim()).map(line => {
+                        let cls = /error|fail|❌/i.test(line) ? 'error' : /success|✓|✅/i.test(line) ? 'success' : /Loading|trace|KB/i.test(line) ? 'info' : '';
+                        return `<div class="log-line ${cls}">${escapeHtml(line.trim())}</div>`;
+                    }).join('');
+                    html += buildStepRaw('📜', 'Full Logs', logLines, false);
+
+                    // Step 4: Job Steps (collapsed)
+                    if (job.steps && job.steps.length) {
+                        const stepsHtml = job.steps.map(s => {
+                            const icon = s.conclusion === 'success' ? '✅' : s.conclusion === 'failure' ? '❌' : s.conclusion === 'skipped' ? '⏭' : '⏳';
+                            const dur = s.completed_at && s.started_at ? formatDuration(new Date(s.completed_at) - new Date(s.started_at)) : '';
+                            return `<div class="log-line ${s.conclusion === 'failure' ? 'error' : s.conclusion === 'success' ? 'success' : ''}">${icon} ${s.name} ${dur ? `<span style="color:rgba(255,255,255,0.3);margin-left:8px;">${dur}</span>` : ''}</div>`;
+                        }).join('');
+                        html += buildStepRaw('⚙️', 'Workflow Steps', stepsHtml, false);
                     }
                     
-                    renderLogs(agentLogs, summaryHtml);
+                    document.getElementById('logsContent').innerHTML = html;
+                    document.getElementById('logsContent').scrollTop = 0;
+                    
+                    // Add click handlers for step toggles
+                    document.querySelectorAll('.step-header').forEach(header => {
+                        header.addEventListener('click', () => {
+                            const body = header.nextElementSibling;
+                            const chevron = header.querySelector('.step-chevron');
+                            header.classList.toggle('expanded');
+                            body.classList.toggle('open');
+                            if (chevron) chevron.classList.toggle('open');
+                        });
+                    });
                 } catch (e) {
                     document.getElementById('logsContent').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
                 }
+            }
+
+            function buildStep(icon, title, text, expanded = false) {
+                const id = 'step-' + Math.random().toString(36).substr(2, 6);
+                return `<div class="step-container">
+                    <div class="step-header ${expanded ? 'expanded' : ''}">
+                        <span class="step-icon">${icon}</span>
+                        <span class="step-title">${title}</span>
+                        <span class="step-chevron ${expanded ? 'open' : ''}">▶</span>
+                    </div>
+                    <div class="step-body ${expanded ? 'open' : ''}">${escapeHtml(text)}</div>
+                </div>`;
+            }
+
+            function buildStepRaw(icon, title, rawHtml, expanded = false) {
+                return `<div class="step-container">
+                    <div class="step-header ${expanded ? 'expanded' : ''}">
+                        <span class="step-icon">${icon}</span>
+                        <span class="step-title">${title}</span>
+                        <span class="step-chevron ${expanded ? 'open' : ''}">▶</span>
+                    </div>
+                    <div class="step-body ${expanded ? 'open' : ''}">${rawHtml}</div>
+                </div>`;
+            }
+
+            function formatDuration(ms) {
+                if (ms < 0 || isNaN(ms)) return '';
+                const secs = Math.floor(ms / 1000);
+                if (secs < 60) return `${secs}s`;
+                const mins = Math.floor(secs / 60);
+                const remSecs = secs % 60;
+                if (mins < 60) return `${mins}m ${remSecs}s`;
+                const hrs = Math.floor(mins / 60);
+                const remMins = mins % 60;
+                return `${hrs}h ${remMins}m`;
             }
 
             function cleanLogs(logs) {
