@@ -1150,6 +1150,11 @@
             mermaid.initialize({ startOnLoad: false, theme: 'dark' });
             marked.setOptions({ breaks: true, gfm: true });
 
+
+            // Utility functions
+            function formatDate(d) { if (!d) return "-"; const diff = (Date.now() - new Date(d)) / 1000; return diff < 60 ? "now" : diff < 3600 ? `${Math.floor(diff / 60)}m` : diff < 86400 ? `${Math.floor(diff / 3600)}h` : new Date(d).toLocaleDateString("en", { month: "short", day: "numeric" }); }
+            function truncate(str, len) { return str?.length > len ? str.slice(0, len) + "..." : str || ""; }
+            function escapeHtml(t) { if (!t) return ""; const d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
             let config = {
                 github: { 
                     token: localStorage.getItem('gh_token') || '', 
