@@ -1256,6 +1256,15 @@
                     document.getElementById('agentMcpServers').value = vars.MCP_SERVERS || '';
                     document.getElementById('agentAdditionalFields').value = vars.STRANDS_ADDITIONAL_REQUEST_FIELDS || '';
                     
+                    // Auto-load TRACES_URL from repo variables
+                    if (vars.TRACES_URL) {
+                        config.traces.url = vars.TRACES_URL;
+                        localStorage.setItem('traces_url', vars.TRACES_URL);
+                        if (document.getElementById('settingsTracesUrl')) {
+                            document.getElementById('settingsTracesUrl').value = vars.TRACES_URL;
+                        }
+                    }
+                    
                     if (document.getElementById('awsRoleArn')) document.getElementById('awsRoleArn').value = vars.AWS_ROLE_ARN || '';
                     if (document.getElementById('awsRegion')) document.getElementById('awsRegion').value = vars.AWS_REGION || 'us-west-2';
                     
