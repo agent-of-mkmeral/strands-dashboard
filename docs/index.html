@@ -25,6 +25,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <style>
         :root {
             --accent: #7c5cfc;
@@ -3126,85 +3127,12 @@
                 contentEl.innerHTML = html;
             }
 
-            async function unzipFirstFile(buffer) {
-                const view = new DataView(buffer);
-
-                // --- Step 1: Find the End of Central Directory (EOCD) record ---
-                // EOCD signature: 0x06054b50. It's at or near the end of the ZIP.
-                let eocdOffset = -1;
-                for (let i = buffer.byteLength - 22; i >= 0; i--) {
-                    if (view.getUint32(i, true) === 0x06054b50) { eocdOffset = i; break; }
-                }
-
-                let compressionMethod, compressedSize, dataOffset;
-
-                if (eocdOffset >= 0) {
-                    // --- Step 2: Read Central Directory for accurate sizes ---
-                    // The central directory ALWAYS has correct sizes, even when
-                    // bit 3 (data descriptor flag) is set and local header has 0s.
-                    const cdOffset = view.getUint32(eocdOffset + 16, true); // offset of start of central directory
-                    if (cdOffset < buffer.byteLength && view.getUint32(cdOffset, true) === 0x02014b50) {
-                        compressionMethod = view.getUint16(cdOffset + 10, true);
-                        compressedSize = view.getUint32(cdOffset + 20, true);
-                        const localHeaderOffset = view.getUint32(cdOffset + 42, true);
-                        // Read local header to calculate data start position
-                        const lhFileNameLen = view.getUint16(localHeaderOffset + 26, true);
-                        const lhExtraLen = view.getUint16(localHeaderOffset + 28, true);
-                        dataOffset = localHeaderOffset + 30 + lhFileNameLen + lhExtraLen;
-                    }
-                }
-
-                // --- Step 3: Fallback to local file header if central directory failed ---
-                if (dataOffset === undefined) {
-                    let offset = 0;
-                    while (offset < buffer.byteLength - 4) {
-                        if (view.getUint32(offset, true) === 0x04034b50) break;
-                        offset++;
-                    }
-                    if (offset >= buffer.byteLength - 30) throw new Error('No ZIP file found');
-                    compressionMethod = view.getUint16(offset + 8, true);
-                    compressedSize = view.getUint32(offset + 18, true);
-                    const fileNameLen = view.getUint16(offset + 26, true);
-                    const extraLen = view.getUint16(offset + 28, true);
-                    dataOffset = offset + 30 + fileNameLen + extraLen;
-                }
-
-                // --- Step 4: Extract compressed data with correct bounds ---
-                // If compressedSize is still 0 (data descriptor, no central directory),
-                // fall back to remaining buffer but accept DecompressionStream errors gracefully.
-                const sliceLen = compressedSize > 0 ? compressedSize : (buffer.byteLength - dataOffset);
-                const compressedData = new Uint8Array(buffer, dataOffset, sliceLen);
-
-                // Method 0 = stored (no compression)
-                if (compressionMethod === 0) return new TextDecoder().decode(compressedData);
-
-                // Method 8 = DEFLATE
-                if (compressionMethod === 8) {
-                    const ds = new DecompressionStream('deflate-raw');
-                    const writer = ds.writable.getWriter();
-                    writer.write(compressedData);
-                    writer.close();
-                    const reader = ds.readable.getReader();
-                    let result = '';
-                    const decoder = new TextDecoder();
-                    try {
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            result += decoder.decode(value, { stream: true });
-                        }
-                    } catch (e) {
-                        // "Unexpected input after the end of stream" means decompression
-                        // succeeded but trailing bytes exist. The data in 'result' is complete.
-                        if (result.length > 0 && e.message && e.message.includes('Unexpected input')) {
-                            console.warn('ZIP: trailing bytes after deflate stream (ignored, data complete)');
-                        } else {
-                            throw e; // Re-throw if no data was collected or different error
-                        }
-                    }
-                    return result;
-                }
-                throw new Error(`Unsupported compression: ${compressionMethod}`);
+            function unzipFirstFile(buffer) {
+                // Use fflate library for robust ZIP handling
+                const unzipped = fflate.unzipSync(new Uint8Array(buffer));
+                const files = Object.keys(unzipped);
+                if (files.length === 0) throw new Error('Empty ZIP archive');
+                return new TextDecoder().decode(unzipped[files[0]]);
             }
 
             
