@@ -2603,6 +2603,7 @@
 
             async function pollForCredsRun(maxWait = 90) {
                 const startTime = Date.now();
+                const lookbackMs = (maxWait + 60) * 1000; // Widen window to account for queue delays
                 while (Date.now() - startTime < maxWait * 1000) {
                     try {
                         // Check completed runs
@@ -2611,14 +2612,24 @@
                         });
                         if (res.ok) {
                             const data = await res.json();
-                            const recentRun = (data.workflow_runs || []).find(r => {
-                                const updatedAt = new Date(r.updated_at).getTime();
-                                return (Date.now() - updatedAt) < 120000 && r.conclusion === 'success';
+                            const recentRuns = (data.workflow_runs || []).filter(r => {
+                                const createdAt = new Date(r.created_at).getTime();
+                                return (Date.now() - createdAt) < lookbackMs;
                             });
-                            if (recentRun) return recentRun;
+                            // Check for success first
+                            const successRun = recentRuns.find(r => r.conclusion === 'success');
+                            if (successRun) return successRun;
+                            // Fail fast if the most recent run failed (no point waiting)
+                            const failedRun = recentRuns.find(r => r.conclusion === 'failure');
+                            if (failedRun && recentRuns.length > 0 && recentRuns[0].conclusion === 'failure') {
+                                const status = document.getElementById('tracesStatus');
+                                if (status) status.textContent = 'Creds workflow failed — check IAM setup';
+                                console.error('Credential vending workflow failed. Run setup-aws-oidc.sh --enable-observability');
+                                return null;
+                            }
                         }
 
-                        // Check in-progress runs
+                        // Check in-progress runs (show progress indicator)
                         const ipRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/creds.yml/runs?per_page=3&status=in_progress`, {
                             headers: { 'Authorization': `Bearer ${config.github.token}` }
                         });
@@ -3131,7 +3142,9 @@
                 const compressedData = new Uint8Array(buffer, dataOffset, compressedSize || (buffer.byteLength - dataOffset));
                 if (compressionMethod === 0) return new TextDecoder().decode(compressedData);
                 if (compressionMethod === 8) {
-                    const ds = new DecompressionStream('raw');
+                    // ZIP method 8 = raw DEFLATE. The correct CompressionFormat is 'deflate-raw'.
+                    // 'raw' is NOT valid — only 'deflate', 'deflate-raw', and 'gzip' are supported.
+                    const ds = new DecompressionStream('deflate-raw');
                     const writer = ds.writable.getWriter();
                     writer.write(compressedData); writer.close();
                     const reader = ds.readable.getReader();
