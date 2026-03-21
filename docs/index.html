@@ -803,17 +803,43 @@
             </div>
 
             <div class="page" id="tracesPage">
-                <div id="tracesContainer">
-                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;">
-                        <div style="font-size:48px;margin-bottom:20px;">📈</div>
-                        <h3 style="font-size:20px;font-weight:600;margin-bottom:12px;">Traces</h3>
-                        <p style="color:rgba(255,255,255,0.5);margin-bottom:24px;max-width:400px;">View agent traces and observability data in Amazon Bedrock.</p>
-                        <a id="tracesExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding:12px 28px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
-                            Open in Bedrock ↗
-                        </a>
-                        <p id="tracesNoUrl" style="display:none;color:rgba(255,255,255,0.4);margin-top:16px;font-size:13px;">
-                            No traces URL configured. Go to <a href="#" onclick="window.showPage('agent')" style="color:var(--accent, #6366f1);">Agent</a> to load repo config, or <a href="#" onclick="window.showPage('settings')" style="color:var(--accent, #6366f1);">Settings</a> to set it manually.
-                        </p>
+                <div class="actions-header" style="margin-bottom:16px;">
+                    <span>📈 Traces</span>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span id="tracesStatus" style="font-size:12px;color:rgba(255,255,255,0.4);"></span>
+                        <button class="btn btn-sm" onclick="window.fetchTracesList()" id="tracesListBtn">Load Sessions</button>
+                        <a id="tracesExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="text-decoration:none;display:none;">Bedrock ↗</a>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:16px;flex:1;min-height:0;">
+                    <!-- Left panel: session/run list -->
+                    <div style="width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;">
+                        <div class="actions-header" style="padding:10px 14px;font-size:13px;">
+                            <span>Sessions</span>
+                            <span id="tracesSessionCount" style="font-size:12px;color:rgba(255,255,255,0.4);"></span>
+                        </div>
+                        <div class="actions-list" id="tracesSessionList" style="max-height:calc(100vh - 240px);flex:1;">
+                            <div class="empty-state" style="padding:40px 20px;">
+                                <div class="empty-icon">📊</div>
+                                <p style="font-size:13px;color:rgba(255,255,255,0.4);">Click "Load Sessions" to fetch trace sessions from CloudWatch via GitHub Actions.</p>
+                                <p style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:8px;">Uses OIDC — no AWS creds needed.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right panel: trace detail -->
+                    <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                        <div class="actions-header" style="padding:10px 14px;font-size:13px;margin-bottom:12px;">
+                            <span id="traceDetailTitle">Trace Detail</span>
+                            <span id="traceDetailMeta" style="font-size:12px;color:rgba(255,255,255,0.4);"></span>
+                        </div>
+                        <div id="traceDetailContent" style="flex:1;overflow-y:auto;max-height:calc(100vh - 240px);">
+                            <div class="empty-state" style="padding:60px 20px;">
+                                <div class="empty-icon">🔍</div>
+                                <p style="font-size:13px;color:rgba(255,255,255,0.4);">Select a session to view its trace</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -994,7 +1020,7 @@
                 </div>
                 <div class="card">
                     <h4>Traces</h4>
-                    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:12px;">Auto-loaded from <code>TRACES_URL</code> repo variable. You can override it below.</p>
+                    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:12px;">Traces are fetched via <code>traces.yml</code> workflow (OIDC → CloudWatch). Optional: set <code>TRACES_URL</code> for direct Bedrock link.</p>
                     <div class="form-group">
                         <label class="form-label">Traces URL</label>
                         <input class="form-input" id="settingsTracesUrl" placeholder="Auto-loaded from repo variables...">
@@ -2381,19 +2407,394 @@
             window.closeScheduleModal = function() { document.getElementById('scheduleModal').classList.remove('active'); };
 
             // ============ TRACES ============
+            // ============ TRACES (CloudWatch via GitHub Actions proxy) ============
+            let tracesData = null;
+            let currentTraceSession = null;
+            let tracesPollInterval = null;
+
             async function loadTraces(silent = false) {
+                // Show Bedrock link if configured
                 const link = document.getElementById('tracesExternalLink');
-                const noUrl = document.getElementById('tracesNoUrl');
-                if (link && noUrl) {
-                    if (config.traces.url) {
-                        link.href = config.traces.url;
-                        link.style.display = 'inline-flex';
-                        noUrl.style.display = 'none';
+                if (link && config.traces.url) {
+                    link.href = config.traces.url;
+                    link.style.display = 'inline-flex';
+                }
+            }
+
+            window.fetchTracesList = async function() {
+                const btn = document.getElementById('tracesListBtn');
+                const status = document.getElementById('tracesStatus');
+                btn.disabled = true;
+                btn.textContent = 'Triggering...';
+                status.textContent = '';
+
+                try {
+                    // Step 1: Trigger the traces.yml workflow via workflow_dispatch
+                    const dispatchRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/dispatches`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ref: 'main',
+                            inputs: { action: 'list', hours_back: '168' }
+                        })
+                    });
+
+                    if (!dispatchRes.ok) {
+                        const errText = await dispatchRes.text();
+                        throw new Error(`Dispatch failed (${dispatchRes.status}): ${errText}`);
+                    }
+
+                    status.textContent = 'Workflow triggered, waiting...';
+                    btn.textContent = 'Waiting...';
+
+                    // Step 2: Poll for the workflow run to complete
+                    await new Promise(r => setTimeout(r, 3000)); // Wait 3s for run to appear
+
+                    const runData = await pollForTraceRun('list');
+                    if (!runData) throw new Error('Workflow run not found or timed out');
+
+                    // Step 3: Download the artifact
+                    status.textContent = 'Downloading results...';
+                    const artifactData = await downloadTraceArtifact(runData.id);
+
+                    if (artifactData) {
+                        tracesData = artifactData;
+                        renderTracesSessions();
+                        status.textContent = `${artifactData.total_sessions || 0} sessions found`;
                     } else {
-                        link.style.display = 'none';
-                        noUrl.style.display = 'block';
+                        status.textContent = 'No data in artifact';
+                    }
+                } catch (e) {
+                    status.textContent = `Error: ${e.message}`;
+                    console.error('Traces fetch error:', e);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Load Sessions';
+                }
+            };
+
+            async function pollForTraceRun(action, maxWait = 120) {
+                const startTime = Date.now();
+                while (Date.now() - startTime < maxWait * 1000) {
+                    try {
+                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/runs?per_page=5&status=completed`, {
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (!res.ok) throw new Error(`API: ${res.status}`);
+
+                        const data = await res.json();
+                        const runs = data.workflow_runs || [];
+
+                        // Find a recent completed run (within last 3 minutes)
+                        const recentRun = runs.find(r => {
+                            const updatedAt = new Date(r.updated_at).getTime();
+                            return (Date.now() - updatedAt) < 180000 && r.conclusion === 'success';
+                        });
+
+                        if (recentRun) return recentRun;
+
+                        // Also check in-progress runs
+                        const inProgressRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/runs?per_page=5&status=in_progress`, {
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        const inProgressData = await inProgressRes.json();
+                        const inProgressRuns = inProgressData.workflow_runs || [];
+
+                        if (inProgressRuns.length > 0) {
+                            document.getElementById('tracesStatus').textContent = `Running (${Math.round((Date.now() - startTime) / 1000)}s)...`;
+                        }
+                    } catch (e) {
+                        console.warn('Poll error:', e);
+                    }
+                    await new Promise(r => setTimeout(r, 3000));
+                }
+                return null;
+            }
+
+            async function downloadTraceArtifact(runId) {
+                try {
+                    // List artifacts for the run
+                    const artRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${runId}/artifacts`, {
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    if (!artRes.ok) return null;
+
+                    const artData = await artRes.json();
+                    const artifact = (artData.artifacts || []).find(a => a.name.startsWith('traces-'));
+                    if (!artifact) return null;
+
+                    // Download the artifact (zip)
+                    const dlRes = await fetch(artifact.archive_download_url, {
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    if (!dlRes.ok) return null;
+
+                    // Unzip and parse JSON
+                    const blob = await dlRes.blob();
+                    const zip = await (new Response(blob)).arrayBuffer();
+
+                    // GitHub artifacts are zipped - use JSZip or manual unzip
+                    // For simplicity, we'll use the built-in DecompressionStream if available,
+                    // or fall back to a minimal zip parser
+                    const jsonStr = await unzipFirstFile(zip);
+                    return JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error('Artifact download error:', e);
+                    return null;
+                }
+            }
+
+            async function unzipFirstFile(buffer) {
+                // Minimal ZIP parser - finds the first file in the archive
+                const view = new DataView(buffer);
+                let offset = 0;
+
+                // Find local file header signature (0x04034b50)
+                while (offset < buffer.byteLength - 4) {
+                    if (view.getUint32(offset, true) === 0x04034b50) break;
+                    offset++;
+                }
+
+                if (offset >= buffer.byteLength - 30) throw new Error('No ZIP file found');
+
+                const compressionMethod = view.getUint16(offset + 8, true);
+                const compressedSize = view.getUint32(offset + 18, true);
+                const uncompressedSize = view.getUint32(offset + 22, true);
+                const fileNameLen = view.getUint16(offset + 26, true);
+                const extraLen = view.getUint16(offset + 28, true);
+                const dataOffset = offset + 30 + fileNameLen + extraLen;
+
+                const compressedData = new Uint8Array(buffer, dataOffset, compressedSize || (buffer.byteLength - dataOffset));
+
+                if (compressionMethod === 0) {
+                    // Stored (no compression)
+                    return new TextDecoder().decode(compressedData);
+                } else if (compressionMethod === 8) {
+                    // Deflated - use DecompressionStream
+                    const ds = new DecompressionStream('raw');
+                    const writer = ds.writable.getWriter();
+                    writer.write(compressedData);
+                    writer.close();
+                    const reader = ds.readable.getReader();
+                    let result = '';
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        result += decoder.decode(value, { stream: true });
+                    }
+                    return result;
+                }
+                throw new Error(`Unsupported compression: ${compressionMethod}`);
+            }
+
+            function renderTracesSessions() {
+                const container = document.getElementById('tracesSessionList');
+                const countEl = document.getElementById('tracesSessionCount');
+
+                if (!tracesData || !tracesData.sessions || tracesData.sessions.length === 0) {
+                    countEl.textContent = '0';
+                    container.innerHTML = `<div class="empty-state" style="padding:30px;">
+                        <div class="empty-icon">📭</div>
+                        <p style="font-size:13px;color:rgba(255,255,255,0.4);">${tracesData?.error || 'No sessions found'}</p>
+                    </div>`;
+                    return;
+                }
+
+                const sessions = tracesData.sessions;
+                countEl.textContent = sessions.length;
+
+                container.innerHTML = sessions.map((s, idx) => {
+                    const sid = s.sid || s.session_id || 'unknown';
+                    const spanCount = s.span_count || '?';
+                    const lastSeen = s.last_seen || '';
+
+                    // Extract run ID from session ID pattern: gh-owner-repo-RUNID
+                    const runMatch = sid.match(/-(\d{8,})$/);
+                    const runId = runMatch ? runMatch[1] : '';
+
+                    // Shorten display name
+                    let displayName = sid;
+                    if (sid.startsWith('gh-')) {
+                        const parts = sid.split('-');
+                        displayName = parts.length > 3 ? `#${parts[parts.length - 1]}` : sid;
+                    }
+
+                    return `
+                        <div class="action-item ${currentTraceSession === sid ? 'selected' : ''}"
+                             onclick="window.selectTraceSession('${sid}')"
+                             style="padding:12px 16px;">
+                            <div class="action-title" style="font-size:14px;font-weight:600;">
+                                ${displayName}
+                            </div>
+                            <div class="action-meta" style="display:flex;justify-content:space-between;">
+                                <span>${spanCount} spans</span>
+                                <span>${lastSeen ? formatDate(lastSeen) : ''}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            window.selectTraceSession = async function(sessionId) {
+                currentTraceSession = sessionId;
+                renderTracesSessions(); // Update selection highlight
+
+                const titleEl = document.getElementById('traceDetailTitle');
+                const metaEl = document.getElementById('traceDetailMeta');
+                const contentEl = document.getElementById('traceDetailContent');
+
+                titleEl.textContent = sessionId;
+                metaEl.textContent = 'Fetching...';
+                contentEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    // Trigger a fetch workflow for this specific session
+                    const dispatchRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/dispatches`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ref: 'main',
+                            inputs: { action: 'fetch', session_id: sessionId, hours_back: '168' }
+                        })
+                    });
+
+                    if (!dispatchRes.ok) throw new Error(`Dispatch failed: ${dispatchRes.status}`);
+
+                    metaEl.textContent = 'Workflow running...';
+                    await new Promise(r => setTimeout(r, 3000));
+
+                    const runData = await pollForTraceRun('fetch');
+                    if (!runData) throw new Error('Timed out waiting for trace fetch');
+
+                    metaEl.textContent = 'Downloading...';
+                    const traceData = await downloadTraceArtifact(runData.id);
+
+                    if (traceData) {
+                        renderTraceDetail(traceData);
+                        metaEl.textContent = `${traceData.total_spans || 0} spans`;
+                    } else {
+                        contentEl.innerHTML = '<div class="empty-state"><p>No trace data found</p></div>';
+                        metaEl.textContent = 'No data';
+                    }
+                } catch (e) {
+                    metaEl.textContent = `Error: ${e.message}`;
+                    contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
+                }
+            };
+
+            function renderTraceDetail(data) {
+                const contentEl = document.getElementById('traceDetailContent');
+                const trace = data.trace || {};
+                const spans = data.spans || [];
+
+                if (spans.length === 0) {
+                    contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No spans found for this session</p>
+                        <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:8px;">Session: ${data.session_id || '?'}</p></div>`;
+                    return;
+                }
+
+                // Build the conversation view (Langfuse-like)
+                let html = '';
+
+                // Summary stats
+                html += `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;flex:1;min-width:100px;">
+                        <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">Spans</div>
+                        <div style="font-size:20px;font-weight:700;">${data.total_spans || 0}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;flex:1;min-width:100px;">
+                        <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">Turns</div>
+                        <div style="font-size:20px;font-weight:700;">${trace.total_turns || 0}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;flex:1;min-width:100px;">
+                        <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">Tool Calls</div>
+                        <div style="font-size:20px;font-weight:700;">${trace.total_tool_calls || 0}</div>
+                    </div>
+                </div>`;
+
+                // Render each span in a timeline
+                html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+
+                for (const span of spans) {
+                    const type = span.type || 'unknown';
+                    const ts = span.timestamp || '';
+                    const timeStr = ts ? new Date(ts).toLocaleTimeString() : '';
+
+                    if (type === 'inference') {
+                        const attrs = span.attributes || {};
+                        const prompt = attrs['gen_ai.prompt'] || '';
+                        const completion = attrs['gen_ai.completion'] || '';
+
+                        if (prompt) {
+                            html += `<div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:12px;padding:14px 16px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                    <span style="font-size:12px;font-weight:600;color:var(--accent-light);">🧠 Inference</span>
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">${timeStr}</span>
+                                </div>
+                                ${prompt ? `<div style="margin-bottom:8px;"><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">PROMPT</div><div style="font-size:13px;color:rgba(255,255,255,0.7);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:200px;overflow-y:auto;">${escapeHtml(String(prompt).slice(0, 1000))}</div></div>` : ''}
+                                ${completion ? `<div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">COMPLETION</div><div style="font-size:13px;color:rgba(255,255,255,0.7);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:200px;overflow-y:auto;">${escapeHtml(String(completion).slice(0, 1000))}</div></div>` : ''}
+                            </div>`;
+                        }
+                    } else if (type === 'tool') {
+                        const attrs = span.attributes || {};
+                        const toolName = attrs['tool.name'] || 'unknown';
+                        const toolInput = attrs['tool.input'] || '';
+                        const toolOutput = attrs['tool.output'] || '';
+
+                        html += `<div style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);border-radius:12px;padding:14px 16px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                <span style="font-size:12px;font-weight:600;color:var(--success);">🔧 ${escapeHtml(String(toolName))}</span>
+                                <span style="font-size:11px;color:rgba(255,255,255,0.3);">${timeStr}</span>
+                            </div>
+                            ${toolInput ? `<div style="margin-bottom:6px;"><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:2px;">INPUT</div><div style="font-size:12px;color:rgba(255,255,255,0.6);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(String(toolInput).slice(0, 500))}</div></div>` : ''}
+                            ${toolOutput ? `<div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:2px;">OUTPUT</div><div style="font-size:12px;color:rgba(255,255,255,0.6);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(String(toolOutput).slice(0, 500))}</div></div>` : ''}
+                        </div>`;
+                    } else if (type === 'span') {
+                        const name = span.name || '';
+                        let durationStr = '';
+                        if (span.duration_ns) {
+                            const ms = parseInt(span.duration_ns) / 1e6;
+                            durationStr = ms > 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+                        }
+
+                        html += `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.7);">📍 ${escapeHtml(name)}</span>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    ${durationStr ? `<span style="font-size:11px;color:rgba(255,255,255,0.4);">${durationStr}</span>` : ''}
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">${timeStr}</span>
+                                </div>
+                            </div>
+                        </div>`;
+                    } else if (type === 'raw') {
+                        html += `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 12px;">
+                            <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:100px;overflow-y:auto;">${escapeHtml(String(span.message || span.data || '').slice(0, 300))}</div>
+                        </div>`;
+                    } else {
+                        // log, unknown
+                        const body = span.body || span.data || '';
+                        if (body) {
+                            html += `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 12px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">${type}</span>
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">${timeStr}</span>
+                                </div>
+                                <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:100px;overflow-y:auto;">${escapeHtml(String(body).slice(0, 300))}</div>
+                            </div>`;
+                        }
                     }
                 }
+
+                html += '</div>';
+
+                // Raw JSON toggle
+                html += `<details style="margin-top:16px;">
+                    <summary style="cursor:pointer;font-size:12px;color:rgba(255,255,255,0.3);padding:8px 0;">Raw JSON (${spans.length} spans)</summary>
+                    <pre style="font-size:11px;color:rgba(255,255,255,0.4);background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;max-height:300px;overflow:auto;white-space:pre-wrap;">${escapeHtml(JSON.stringify(data, null, 2).slice(0, 10000))}</pre>
+                </details>`;
+
+                contentEl.innerHTML = html;
             }
 
             
