@@ -282,6 +282,47 @@
         .summary-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 18px; margin-bottom: 18px; }
         .summary-title { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
 
+
+        /* Warnings */
+        .warnings-section { margin-bottom: 24px; }
+        .warning-card {
+            padding: 16px 20px;
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            animation: fadeIn 0.3s ease;
+        }
+        .warning-card.critical {
+            background: rgba(248, 113, 113, 0.08);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+        .warning-card.warning {
+            background: rgba(251, 191, 36, 0.08);
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+        .warning-card.info {
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+        .warning-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+        .warning-content { flex: 1; min-width: 0; }
+        .warning-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .warning-card.critical .warning-title { color: var(--danger); }
+        .warning-card.warning .warning-title { color: var(--warning); }
+        .warning-card.info .warning-title { color: var(--accent-light); }
+        .warning-description { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+        .warning-details { font-size: 12px; color: var(--text-muted); margin-top: 6px; font-family: 'SF Mono', monospace; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+        .warning-count-badge { 
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 18px; height: 18px; padding: 0 5px;
+            border-radius: 9px; font-size: 11px; font-weight: 700;
+            margin-left: 6px; vertical-align: middle; line-height: 1;
+        }
+        .warning-count-badge.critical-badge { background: rgba(248, 113, 113, 0.2); color: var(--danger); }
+        .warning-count-badge.warning-badge { background: rgba(251, 191, 36, 0.2); color: var(--warning); }
+
         /* Dashboard specific */
         .project-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
         .project-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 16px; text-align: center; transition: all 0.2s ease; cursor: pointer; }
@@ -408,6 +449,7 @@
         <div class="content">
             <div class="page active" id="dashboardPage">
                 <h3>📊 Project Dashboard</h3>
+                <div id="warningsContainer"></div>
                 <div class="project-stat-grid" id="projectStats"></div>
                 <h4 style="margin-top:20px;margin-bottom:14px;">🗂️ Project Board</h4>
                 <div class="project-board" id="projectBoard"></div>
@@ -1003,6 +1045,10 @@
                     ]);
                     
                     renderDashboard();
+                    
+                    // Compute and render warnings after all data loaded
+                    var warnings = computeWarnings();
+                    renderWarnings(warnings);
                 } catch (e) {
                     document.getElementById('projectStats').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
                 }
@@ -2337,7 +2383,191 @@
                 return type.replace('Event', '');
             }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { window.closeIssueModal(); window.closeScheduleModal(); } });
+
+            // ============ WARNINGS ============
+            const ALLOWED_OWNERS = ['agent-of-mkmeral', 'strands-agents', 'strands-labs', 'mkmeral'];
+
+            function computeWarnings() {
+                const warnings = [];
+                const owner = config.github.repo.split('/')[0];
+
+                // 1. Unauthorized repo interactions
+                if (activityData.external_events && activityData.external_events.length > 0) {
+                    const unauthorizedEvents = activityData.external_events.filter(function(evt) {
+                        const repoOwner = (evt.repo || '').split('/')[0].toLowerCase();
+                        return !ALLOWED_OWNERS.some(function(o) { return o.toLowerCase() === repoOwner; });
+                    });
+
+                    if (unauthorizedEvents.length > 0) {
+                        const repos = [];
+                        const seen = {};
+                        unauthorizedEvents.forEach(function(e) {
+                            if (!seen[e.repo]) { repos.push(e.repo); seen[e.repo] = true; }
+                        });
+                        warnings.push({
+                            level: 'critical',
+                            icon: '🚨',
+                            title: 'Unauthorized Repository Interaction',
+                            description: 'Agent performed ' + unauthorizedEvents.length + ' action(s) in ' + repos.length + ' unauthorized repo(s) in the last 24h. Allowed owners: ' + ALLOWED_OWNERS.join(', '),
+                            details: repos.slice(0, 5).join(', ') + (repos.length > 5 ? ' +' + (repos.length - 5) + ' more' : '')
+                        });
+                    }
+                }
+
+                // 2. Throttle status
+                var limit = 30;
+                var externalCount = (activityData.external_events || []).length;
+
+                if (externalCount >= limit) {
+                    warnings.push({
+                        level: 'critical',
+                        icon: '🛑',
+                        title: 'Daily Throttle Limit Exceeded',
+                        description: externalCount + '/' + limit + ' external actions used. Agent should be rate-limited.',
+                        details: null
+                    });
+                } else if (externalCount >= Math.floor(limit * 0.8)) {
+                    warnings.push({
+                        level: 'warning',
+                        icon: '⚠️',
+                        title: 'Approaching Throttle Limit',
+                        description: externalCount + '/' + limit + ' external actions used (' + Math.round(externalCount / limit * 100) + '%). Only ' + (limit - externalCount) + ' remaining.',
+                        details: null
+                    });
+                }
+
+                // 3. Consecutive failed actions
+                if (actions.length > 0) {
+                    var consecutive = 0;
+                    for (var i = 0; i < actions.length; i++) {
+                        if (actions[i].conclusion === 'failure') consecutive++;
+                        else break;
+                    }
+                    if (consecutive >= 3) {
+                        warnings.push({
+                            level: 'warning',
+                            icon: '💥',
+                            title: consecutive + ' Consecutive Failed Actions',
+                            description: 'The last ' + consecutive + ' workflow runs failed. The agent may be stuck or misconfigured.',
+                            details: null
+                        });
+                    }
+                }
+
+                // 4. Long-running actions (>45 min)
+                var runningActions = actions.filter(function(a) { return a.status === 'in_progress' || a.status === 'queued'; });
+                for (var j = 0; j < runningActions.length; j++) {
+                    var action = runningActions[j];
+                    var startTime = new Date(action.created_at);
+                    var runMinutes = (Date.now() - startTime) / (1000 * 60);
+                    if (runMinutes > 45) {
+                        warnings.push({
+                            level: 'warning',
+                            icon: '⏱️',
+                            title: 'Long-Running Action Detected',
+                            description: 'Action #' + action.run_number + ' has been running for ' + Math.round(runMinutes) + ' minutes. May be stuck.',
+                            details: null
+                        });
+                    }
+                }
+
+                // 5. Stale external items (7+ days without update)
+                var staleThreshold = 7 * 24 * 60 * 60 * 1000;
+                var allWild = (wildPRs || []).concat(wildIssues || []);
+                var staleWild = allWild.filter(function(item) {
+                    return (Date.now() - new Date(item.updated_at)) > staleThreshold;
+                });
+                if (staleWild.length > 0) {
+                    var staleRepos = [];
+                    var seenStale = {};
+                    staleWild.forEach(function(item) {
+                        var repoUrl = item.repository_url || '';
+                        var repoName = repoUrl.replace('https://api.github.com/repos/', '');
+                        if (!seenStale[repoName]) { staleRepos.push(repoName); seenStale[repoName] = true; }
+                    });
+                    warnings.push({
+                        level: 'info',
+                        icon: '📌',
+                        title: staleWild.length + ' Stale External Item' + (staleWild.length > 1 ? 's' : ''),
+                        description: 'Open PRs/issues in external repos with no updates for 7+ days. Consider closing or following up.',
+                        details: staleRepos.slice(0, 3).join(', ') + (staleRepos.length > 3 ? ' +' + (staleRepos.length - 3) + ' more' : '')
+                    });
+                }
+
+                // 6. High error rate (>50% failures in last 10 runs)
+                if (actions.length >= 5) {
+                    var recentTen = actions.slice(0, 10).filter(function(a) { return a.conclusion; });
+                    var failures = recentTen.filter(function(a) { return a.conclusion === 'failure'; }).length;
+                    if (recentTen.length >= 5 && failures / recentTen.length > 0.5) {
+                        warnings.push({
+                            level: 'warning',
+                            icon: '📉',
+                            title: 'High Failure Rate',
+                            description: failures + ' of last ' + recentTen.length + ' completed actions failed (' + Math.round(failures / recentTen.length * 100) + '% failure rate).',
+                            details: null
+                        });
+                    }
+                }
+
+                return warnings;
+            }
+
+            function renderWarnings(warnings) {
+                var container = document.getElementById('warningsContainer');
+                if (!container) return;
+
+                if (warnings.length === 0) {
+                    container.innerHTML = '';
+                    // Update nav badge
+                    updateWarningBadge(0, 0);
+                    return;
+                }
+
+                var html = '<div class="warnings-section">';
+                for (var i = 0; i < warnings.length; i++) {
+                    var w = warnings[i];
+                    html += '<div class="warning-card ' + w.level + '">';
+                    html += '<div class="warning-icon">' + w.icon + '</div>';
+                    html += '<div class="warning-content">';
+                    html += '<div class="warning-title">' + escapeHtml(w.title) + '</div>';
+                    html += '<div class="warning-description">' + escapeHtml(w.description) + '</div>';
+                    if (w.details) {
+                        html += '<div class="warning-details">' + escapeHtml(w.details) + '</div>';
+                    }
+                    html += '</div></div>';
+                }
+                html += '</div>';
+                container.innerHTML = html;
+
+                // Update nav badge
+                var criticalCount = warnings.filter(function(w) { return w.level === 'critical'; }).length;
+                var warningCount = warnings.filter(function(w) { return w.level === 'warning'; }).length;
+                updateWarningBadge(criticalCount, warningCount);
+            }
+
+            function updateWarningBadge(criticalCount, warningCount) {
+                var dashTab = document.querySelector('[data-page="dashboard"]');
+                if (!dashTab) return;
+                
+                // Remove existing badge
+                var existing = dashTab.querySelector('.warning-count-badge');
+                if (existing) existing.remove();
+                
+                if (criticalCount > 0) {
+                    var badge = document.createElement('span');
+                    badge.className = 'warning-count-badge critical-badge';
+                    badge.textContent = criticalCount;
+                    dashTab.appendChild(badge);
+                } else if (warningCount > 0) {
+                    var badge = document.createElement('span');
+                    badge.className = 'warning-count-badge warning-badge';
+                    badge.textContent = warningCount;
+                    dashTab.appendChild(badge);
+                }
+            }
+
+
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { window.closeIssueModal(); window.closeScheduleModal(); } });
         })();
     </script>
 </body>
