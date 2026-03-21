@@ -502,7 +502,19 @@
             </div>
 
             <div class="page" id="tracesPage">
-                <div id="tracesContainer"></div>
+                <div id="tracesContainer">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;">
+                        <div style="font-size:48px;margin-bottom:20px;">📈</div>
+                        <h3 style="font-size:20px;font-weight:600;margin-bottom:12px;">Traces</h3>
+                        <p style="color:rgba(255,255,255,0.5);margin-bottom:24px;max-width:400px;">View agent traces and observability data in Amazon Bedrock.</p>
+                        <a id="tracesExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding:12px 28px;font-size:15px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
+                            Open in Bedrock ↗
+                        </a>
+                        <p id="tracesNoUrl" style="display:none;color:rgba(255,255,255,0.4);margin-top:16px;font-size:13px;">
+                            No traces URL configured. <a href="#" onclick="window.showPage('settings')" style="color:var(--accent, #6366f1);">Set it in Settings</a>.
+                        </p>
+                    </div>
+                </div>
             </div>
             
             <div class="page" id="agentPage">
@@ -680,20 +692,12 @@
                     <button class="btn btn-primary" onclick="window.saveGitHubSettings()">Save</button>
                 </div>
                 <div class="card">
-                    <h4>Langfuse</h4>
+                    <h4>Traces</h4>
                     <div class="form-group">
-                        <label class="form-label">Host</label>
-                        <input class="form-input" id="settingsLfHost">
+                        <label class="form-label">Traces URL</label>
+                        <input class="form-input" id="settingsTracesUrl" placeholder="https://...">
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Public Key</label>
-                        <input class="form-input" id="settingsLfPublicKey">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Secret Key</label>
-                        <input type="password" class="form-input" id="settingsLfSecretKey">
-                    </div>
-                    <button class="btn btn-primary" onclick="window.saveLangfuseSettings()">Save</button>
+                    <button class="btn btn-primary" onclick="window.saveTracesSettings()">Save</button>
                 </div>
                 <div class="card">
                     <h4>Import from Link</h4>
@@ -730,13 +734,6 @@
         <div class="modal-content">
             <div class="modal-header"><div class="modal-title" id="issueModalTitle"></div><button class="modal-close" onclick="window.closeIssueModal()">✕</button></div>
             <div class="modal-body" id="issueModalBody"></div>
-        </div>
-    </div>
-
-    <div class="modal" id="traceModal" onclick="if(event.target===this) window.closeTraceModal()">
-        <div class="modal-content">
-            <div class="modal-header"><div class="modal-title" id="traceModalTitle"></div><button class="modal-close" onclick="window.closeTraceModal()">✕</button></div>
-            <div class="modal-body" id="traceModalBody"></div>
         </div>
     </div>
 
@@ -789,14 +786,14 @@
                     workflow: localStorage.getItem('gh_workflow') || 'agent.yml',
                     projectId: localStorage.getItem('gh_project_id') || 'PVT_kwHOAIyVLs4BMSWO'
                 },
-                langfuse: { host: localStorage.getItem('lf_host') || 'https://cloud.langfuse.com', publicKey: localStorage.getItem('lf_public_key') || '', secretKey: localStorage.getItem('lf_secret_key') || '' }
+                traces: { url: localStorage.getItem('traces_url') || '' }
             };
 
-            let issues = [], actions = [], traces = [], scheduleData = { jobs: {} }, projectData = null;
+            let issues = [], actions = [], scheduleData = { jobs: {} }, projectData = null;
             let currentAction = null, currentIssue = null, currentTrace = null, selectedJob = null;
             let streamingInterval = null, filteredIssueNum = null;
-            let conversationMessages = [], playbackInterval = null, isPlaying = false;
-            let traceStartTime = 0, traceDuration = 0;
+            
+            
             let pagesLoaded = {};
             let issueFilterState = 'all';
 
@@ -835,7 +832,7 @@
                 }
 
                 if (urlParams.get('issue')) window.openIssueDetail(parseInt(urlParams.get('issue')));
-                if (urlParams.get('trace')) setTimeout(() => window.openTraceDetail(urlParams.get('trace')), 500);
+
             });
 
             window.showPage = function(page) {
@@ -892,7 +889,7 @@
                 const password = document.getElementById('sharePassword')?.value;
                 if (isEncrypted && (!password || password.length < 4)) return showToast('Password min 4 chars');
 
-                const data = { v: 1, gh: { token: config.github.token, repo: config.github.repo, wf: config.github.workflow, pid: config.github.projectId }, lf: { host: config.langfuse.host, pk: config.langfuse.publicKey, sk: config.langfuse.secretKey } };
+                const data = { v: 1, gh: { token: config.github.token, repo: config.github.repo, wf: config.github.workflow, pid: config.github.projectId }, tr: { url: config.traces.url } };
                 let encoded;
                 if (isEncrypted) {
                     try { encoded = await encryptData(JSON.stringify(data), password); } catch { return showToast('Encryption failed'); }
@@ -949,10 +946,8 @@
                         if (data.gh.wf) { config.github.workflow = data.gh.wf; localStorage.setItem('gh_workflow', data.gh.wf); }
                         if (data.gh.pid) { config.github.projectId = data.gh.pid; localStorage.setItem('gh_project_id', data.gh.pid); }
                     }
-                    if (data.lf) {
-                        if (data.lf.host) { config.langfuse.host = data.lf.host; localStorage.setItem('lf_host', data.lf.host); }
-                        if (data.lf.pk) { config.langfuse.publicKey = data.lf.pk; localStorage.setItem('lf_public_key', data.lf.pk); }
-                        if (data.lf.sk) { config.langfuse.secretKey = data.lf.sk; localStorage.setItem('lf_secret_key', data.lf.sk); }
+                    if (data.tr) {
+                        if (data.tr.url) { config.traces.url = data.tr.url; localStorage.setItem('traces_url', data.tr.url); }
                     }
                     
                     loadSettingsForm();
@@ -969,9 +964,8 @@
                 document.getElementById('settingsGhRepo').value = config.github.repo;
                 document.getElementById('settingsGhWorkflow').value = config.github.workflow;
                 document.getElementById('settingsGhProjectId').value = config.github.projectId;
-                document.getElementById('settingsLfHost').value = config.langfuse.host;
-                document.getElementById('settingsLfPublicKey').value = config.langfuse.publicKey;
-                document.getElementById('settingsLfSecretKey').value = config.langfuse.secretKey;
+                document.getElementById('settingsTracesUrl').value = config.traces.url;
+
             }
 
             window.saveGitHubSettings = function() {
@@ -987,13 +981,9 @@
                 pagesLoaded = {};
             };
 
-            window.saveLangfuseSettings = function() {
-                config.langfuse.host = document.getElementById('settingsLfHost').value.trim();
-                config.langfuse.publicKey = document.getElementById('settingsLfPublicKey').value.trim();
-                config.langfuse.secretKey = document.getElementById('settingsLfSecretKey').value.trim();
-                localStorage.setItem('lf_host', config.langfuse.host);
-                localStorage.setItem('lf_public_key', config.langfuse.publicKey);
-                localStorage.setItem('lf_secret_key', config.langfuse.secretKey);
+            window.saveTracesSettings = function() {
+                config.traces.url = document.getElementById('settingsTracesUrl').value.trim();
+                localStorage.setItem('traces_url', config.traces.url);
                 showToast('Saved!');
             };
 
@@ -1008,7 +998,6 @@
                         loadActions(true),
                         loadActivity(true),
                         loadWild(true),
-                        loadTraces(true),
                         loadProjectBoard()
                     ]);
                     
@@ -1208,8 +1197,8 @@
                         <div class="project-stat-value">${failedActions}</div>
                         <div class="project-stat-label">Failed</div>
                     </div>
-                    <div class="project-stat">
-                        <div class="project-stat-value">${traces.length}</div>
+                    <div class="project-stat" style="cursor:pointer;" onclick="window.showPage('traces')">
+                        <div class="project-stat-value">📈</div>
                         <div class="project-stat-label">Traces</div>
                     </div>
                 `;
@@ -1422,7 +1411,7 @@
 
                 container.innerHTML = displayIssues.map(issue => {
                     const actionStatus = getActionStatus(issue.number);
-                    const traceStatus = getTraceStatus(issue.number);
+
                     return `
                         <div class="card clickable" onclick="window.openIssueDetail(${issue.number}); updateUrl('issue', ${issue.number});">
                             <div style="display:flex;gap:14px;margin-bottom:14px;">
@@ -1437,7 +1426,7 @@
                             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                                 <span class="badge">${issue.state === 'open' ? '● Open' : '○ Closed'}</span>
                                 ${actionStatus ? `<a onclick="event.stopPropagation(); window.viewIssueActions(${issue.number})" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;gap:4px;cursor:pointer;">⚡ ${actionStatus.text}</a>` : ''}
-                                ${traceStatus ? `<a onclick="event.stopPropagation(); window.viewIssueTrace(${issue.number})" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;gap:4px;cursor:pointer;">📈</a>` : ''}
+
                                 <span style="font-size:14px;color:rgba(255,255,255,0.5);">💬 ${issue.comments}</span>
                             </div>
                         </div>
@@ -1454,10 +1443,6 @@
                 if (latest.conclusion === 'success') return { text: 'Done' };
                 if (latest.conclusion === 'failure') return { text: 'Failed' };
                 return { text: `${issueActions.length}` };
-            }
-
-            function getTraceStatus(issueNum) {
-                return traces.some(t => (t.metadata?.issue_id || t.tags?.find(x => x.startsWith('issue:'))?.split(':')[1]) == issueNum);
             }
 
             function extractIssueNum(action) {
@@ -1598,15 +1583,6 @@
                 if (!pagesLoaded.actions) { loadActions(); pagesLoaded.actions = true; } else { renderActions(); }
                 const issueActions = actions.filter(a => extractIssueNum(a) === issueNum);
                 if (issueActions.length) window.selectAction(issueActions[0].id);
-            };
-
-            window.viewIssueTrace = function(issueNum) {
-                window.showPage('traces');
-                if (!pagesLoaded.traces) { loadTraces(); pagesLoaded.traces = true; }
-                setTimeout(() => {
-                    const trace = traces.find(t => (t.metadata?.issue_id || t.tags?.find(x => x.startsWith('issue:'))?.split(':')[1]) == issueNum);
-                    if (trace) window.openTraceDetail(trace.id);
-                }, 300);
             };
 
             window.createIssue = async function() {
@@ -1956,220 +1932,19 @@
 
             // ============ TRACES ============
             async function loadTraces(silent = false) {
-                const container = document.getElementById('tracesContainer');
-                if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-                if (!config.langfuse.publicKey) {
-                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon">📈</div><h3>Configure Langfuse</h3><button class="btn" onclick="window.showPage('settings')" style="margin-top:12px;">Settings</button></div>`;
-                    return;
-                }
-
-                try {
-                    const auth = btoa(`${config.langfuse.publicKey}:${config.langfuse.secretKey}`);
-                    const res = await fetch(`${config.langfuse.host}/api/public/traces?limit=50`, { headers: { 'Authorization': `Basic ${auth}` }});
-                    if (!res.ok && !silent) throw new Error(`API: ${res.status}`);
-                    traces = (await res.json()).data || [];
-                    if (!silent) renderTraces();
-                } catch (e) {
-                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
-                }
-            }
-
-            function renderTraces() {
-                const container = document.getElementById('tracesContainer');
-                if (!traces.length) return container.innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div><h3>No Traces</h3></div>';
-
-                container.innerHTML = traces.map(trace => {
-                    const issueId = trace.metadata?.issue_id || trace.tags?.find(x => x.startsWith('issue:'))?.split(':')[1];
-                    const tokens = (trace.inputTokens || 0) + (trace.outputTokens || 0);
-                    const cost = trace.totalCost || 0;
-                    let gens = 0, tools = 0;
-                    if (trace.observations) {
-                        gens = trace.observations.filter(o => o.type === 'GENERATION').length;
-                        tools = trace.observations.filter(o => o.type === 'TOOL').length;
+                const link = document.getElementById('tracesExternalLink');
+                const noUrl = document.getElementById('tracesNoUrl');
+                if (link && noUrl) {
+                    if (config.traces.url) {
+                        link.href = config.traces.url;
+                        link.style.display = 'inline-flex';
+                        noUrl.style.display = 'none';
+                    } else {
+                        link.style.display = 'none';
+                        noUrl.style.display = 'block';
                     }
-                    
-                    return `
-                        <div class="card clickable trace-item" onclick="window.openTraceDetail('${trace.id}'); updateUrl('trace', '${trace.id}');">
-                            <div class="trace-info">
-                                <div class="trace-name">${trace.name || 'Trace'} ${issueId ? `<span class="badge">#${issueId}</span>` : ''}</div>
-                                <div class="trace-meta">
-                                    <span>${trace.id.slice(0, 8)}...</span>
-                                    <span>${formatDate(trace.timestamp)}</span>
-                                    <span>⏱ ${formatDuration(trace.latency)}</span>
-                                </div>
-                            </div>
-                            <div class="trace-stats-row">
-                                ${tokens > 0 ? `<div class="trace-stat">${formatTokens(tokens)}</div>` : ''}
-                                ${gens > 0 ? `<div class="trace-stat">${gens}g</div>` : ''}
-                                ${tools > 0 ? `<div class="trace-stat">${tools}t</div>` : ''}
-                                <div class="trace-stat">$${cost.toFixed(3)}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            window.openTraceDetail = async function(traceId) {
-                currentTrace = traces.find(t => t.id === traceId);
-                if (!currentTrace) return;
-
-                const issueId = currentTrace.metadata?.issue_id || currentTrace.tags?.find(x => x.startsWith('issue:'))?.split(':')[1];
-                document.getElementById('traceModalTitle').textContent = `Trace ${issueId ? `#${issueId}` : ''}`;
-                document.getElementById('traceModalBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-                document.getElementById('traceModal').classList.add('active');
-
-                try {
-                    const auth = btoa(`${config.langfuse.publicKey}:${config.langfuse.secretKey}`);
-                    const traceRes = await fetch(`${config.langfuse.host}/api/public/traces/${traceId}`, { headers: { 'Authorization': `Basic ${auth}` }});
-                    if (!traceRes.ok) throw new Error(`API: ${traceRes.status}`);
-                    currentTrace = { ...currentTrace, ...(await traceRes.json()) };
-                    currentTrace.observations = currentTrace.observations || [];
-                    renderTraceDetail();
-                } catch (e) {
-                    document.getElementById('traceModalBody').innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
                 }
-            };
-
-            function renderTraceDetail() {
-                const body = document.getElementById('traceModalBody');
-                const t = currentTrace;
-                const sorted = [...(t.observations || [])].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-                
-                if (sorted.length) {
-                    traceStartTime = new Date(sorted[0].startTime).getTime();
-                    traceDuration = (Math.max(...sorted.map(o => new Date(o.endTime || o.startTime).getTime())) - traceStartTime) / 1000;
-                }
-                
-                conversationMessages = buildConversation(sorted);
-                const tokens = (t.inputTokens || 0) + (t.outputTokens || 0);
-                const gens = sorted.filter(o => o.type === 'GENERATION');
-                const tools = sorted.filter(o => o.type === 'TOOL');
-                
-                body.innerHTML = `
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:12px;margin-bottom:20px;">
-                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
-                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${formatDuration(t.latency)}</div>
-                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Time</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
-                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${formatTokens(tokens)}</div>
-                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Tokens</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
-                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${gens.length}</div>
-                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Gens</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
-                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${tools.length}</div>
-                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Tools</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
-                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">$${(t.totalCost || 0).toFixed(3)}</div>
-                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Cost</div>
-                        </div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;" id="conversationContainer"></div>
-                    ${conversationMessages.length ? `
-                    <div class="play-control">
-                        <button class="play-btn" id="playBtn" onclick="window.togglePlayback()"><span id="playIcon">▶</span></button>
-                        <div style="flex:1;min-width:150px;">
-                            <input type="range" class="play-slider" id="timelineSlider" min="0" max="1000" value="0" oninput="window.scrubTimeline(this.value)">
-                            <div class="play-time"><span id="playCurrentTime">0.0s</span><span id="playTotalTime">${formatDuration(traceDuration)}</span></div>
-                        </div>
-                    </div>` : ''}
-                `;
-                renderConversation(0);
             }
-
-            function buildConversation(observations) {
-                const messages = [], seen = new Set();
-                observations.forEach((o, idx) => {
-                    const startTime = (new Date(o.startTime).getTime() - traceStartTime) / 1000;
-                    const endTime = (new Date(o.endTime || o.startTime).getTime() - traceStartTime) / 1000;
-                    if (o.type === 'GENERATION') {
-                        if (idx === 0 && o.input && Array.isArray(o.input)) {
-                            o.input.forEach(msg => {
-                                if (msg.role === 'user') {
-                                    const text = extractText(msg.content);
-                                    if (text && !seen.has(`user:${text.slice(0, 100)}`)) {
-                                        seen.add(`user:${text.slice(0, 100)}`);
-                                        messages.push({ time: startTime, type: 'user', role: '👤 User', content: text.slice(0, 350) });
-                                    }
-                                }
-                            });
-                        }
-                        if (o.output?.message) {
-                            const text = extractText(o.output.message);
-                            if (text && !seen.has(`assistant:${text.slice(0, 100)}`)) {
-                                seen.add(`assistant:${text.slice(0, 100)}`);
-                                messages.push({ time: endTime, type: 'assistant', role: '🤖 Assistant', content: text.slice(0, 500) });
-                            }
-                        }
-                    } else if (o.type === 'TOOL') {
-                        messages.push({ time: startTime, type: 'tool-call', role: `🔧 ${o.name || 'tool'}`, content: truncate(typeof o.input === 'string' ? o.input : JSON.stringify(o.input), 60) });
-                    }
-                });
-                return messages.sort((a, b) => a.time - b.time);
-            }
-
-            function renderConversation(currentTime) {
-                const container = document.getElementById('conversationContainer');
-                if (!container) return;
-                container.innerHTML = conversationMessages.filter(m => m.time <= currentTime).map(msg => `<div class="chat-message ${msg.type}"><div class="message-role">${msg.role}</div><div>${escapeHtml(msg.content)}</div></div>`).join('');
-            }
-
-            window.togglePlayback = function() { isPlaying ? stopPlayback() : startPlayback(); };
-
-            function startPlayback() {
-                isPlaying = true;
-                const playIcon = document.getElementById('playIcon');
-                const playBtn = document.getElementById('playBtn');
-                if (playIcon) playIcon.textContent = '⏸';
-                if (playBtn) playBtn.classList.add('playing');
-                const slider = document.getElementById('timelineSlider');
-                if (!slider) return;
-                let v = parseInt(slider.value);
-                if (v >= 990) v = 0;
-                playbackInterval = setInterval(() => {
-                    v += 10;
-                    if (v >= 1000) { v = 1000; stopPlayback(); }
-                    slider.value = v;
-                    window.scrubTimeline(v);
-                }, 50);
-            }
-
-            function stopPlayback() {
-                isPlaying = false;
-                const playIcon = document.getElementById('playIcon');
-                const playBtn = document.getElementById('playBtn');
-                if (playIcon) playIcon.textContent = '▶';
-                if (playBtn) playBtn.classList.remove('playing');
-                if (playbackInterval) { clearInterval(playbackInterval); playbackInterval = null; }
-            }
-
-            window.scrubTimeline = function(value) {
-                const currentTime = traceDuration * (value / 1000);
-                const el = document.getElementById('playCurrentTime');
-                if (el) el.textContent = formatDuration(currentTime);
-                renderConversation(currentTime);
-            };
-
-            function extractText(content) {
-                if (!content) return '';
-                if (typeof content === 'string') {
-                    try { const parsed = JSON.parse(content); if (Array.isArray(parsed)) return parsed.map(p => p.text || '').join(' '); return content; } catch { return content; }
-                }
-                if (Array.isArray(content)) return content.map(c => c.text || '').join(' ');
-                return '';
-            }
-
-            window.closeTraceModal = function() {
-                if (isPlaying) stopPlayback();
-                document.getElementById('traceModal').classList.remove('active');
-                const url = new URL(window.location);
-                url.searchParams.delete('trace');
-                window.history.replaceState({}, '', url);
-            };
 
             
             window.togglePromptView = function(view) {
@@ -2545,7 +2320,7 @@
                 return type.replace('Event', '');
             }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { window.closeIssueModal(); window.closeTraceModal(); window.closeScheduleModal(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { window.closeIssueModal(); window.closeScheduleModal(); } });
         })();
     </script>
 </body>
