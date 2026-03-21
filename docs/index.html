@@ -953,7 +953,7 @@
             /* Traces mobile: stack vertically */
             .traces-layout { flex-direction: column !important; }
             .traces-sidebar { width: 100% !important; }
-            .traces-sidebar .actions-list { max-height: 200px !important; }
+            /* traces sidebar max-height now managed by drill-down CSS below */
 
             #wildOverview { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
 
@@ -965,6 +965,62 @@
             .project-stat-grid, .stat-grid { grid-template-columns: repeat(2, 1fr); }
             .project-stat-value, .stat-value { font-size: 20px; }
             h3 { font-size: 16px; }
+        }
+
+        /* ===== MOBILE DRILL-DOWN PATTERN ===== */
+        /* On mobile, split-pane layouts use drill-down: show list OR detail, not both */
+        .mobile-back-btn {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--r-md);
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: var(--sp-3);
+            width: fit-content;
+        }
+        .mobile-back-btn:hover { background: var(--bg-tertiary); }
+
+        @media (max-width: 768px) {
+            /* === ACTIONS PAGE: drill-down === */
+            #actionsPage.has-selection .actions-list { display: none; }
+            #actionsPage.has-selection .actions-header { display: none; }
+            #actionsPage.has-selection .mobile-back-btn { display: inline-flex; }
+            #actionsPage:not(.has-selection) .logs-viewer { display: none; }
+
+            /* === TRACES PAGE: drill-down === */
+            #tracesPage.has-selection .traces-sidebar { display: none !important; }
+            #tracesPage.has-selection .mobile-back-btn { display: inline-flex; }
+            #tracesPage:not(.has-selection) .traces-layout > div:last-child { display: none !important; }
+            #tracesPage .traces-sidebar { width: 100% !important; }
+            #tracesPage .traces-sidebar .actions-list { max-height: none !important; }
+            #tracesPage #traceDetailContent { max-height: none !important; }
+
+            /* === SCHEDULE PAGE: drill-down === */
+            #schedulePage.has-selection > .actions-list { display: none; }
+            #schedulePage.has-selection > h3 { display: none; }
+            #schedulePage.has-selection > .btn { display: none; }
+            #schedulePage.has-selection .mobile-back-btn { display: inline-flex; }
+            #schedulePage:not(.has-selection) .job-detail { display: none; }
+
+            /* Trace inline content: remove all max-height on mobile */
+            [style*="max-height:200px"],
+            [style*="max-height:150px"],
+            [style*="max-height:100px"],
+            [style*="max-height:300px"] {
+                max-height: none !important;
+            }
+
+            /* Step body: no max-height on mobile */
+            .step-body { max-height: none !important; }
+
+            /* Preview box: no max-height on mobile */
+            .preview-box { max-height: none !important; }
         }
     </style>
 </head>
@@ -1002,6 +1058,7 @@
             </div>
             
             <div class="page" id="actionsPage">
+                <button class="mobile-back-btn" onclick="window.mobileBack('actions')">← Back to Actions</button>
                 <div class="actions-header"><span>⚡ Actions</span><span id="issueFilterBadge"></span></div>
                 <div class="actions-list" id="actionsContainer"></div>
                 <div class="logs-viewer">
@@ -1108,6 +1165,7 @@
 
                     <!-- Right panel: trace detail -->
                     <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                        <button class="mobile-back-btn" onclick="window.mobileBack('traces')">← Back to Sessions</button>
                         <div class="actions-header" style="padding:8px 12px;font-size:12px;margin-bottom:10px;">
                             <span id="traceDetailTitle">Trace Detail</span>
                             <span id="traceDetailMeta" style="font-size:11px;color:var(--text-muted);"></span>
@@ -1197,6 +1255,7 @@
                 <div class="actions-list" style="margin-bottom:var(--sp-4);">
                     <div id="jobsList"></div>
                 </div>
+                <button class="mobile-back-btn" onclick="window.mobileBack('schedule')">← Back to Jobs</button>
                 <div class="job-detail" id="jobDetailContainer">
                     <div class="empty-state">
                         <div class="empty-icon">📅</div>
@@ -1355,7 +1414,7 @@
             });
 
             window.showPage = function(page) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.classList.remove('has-selection'); });
                 document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
                 document.getElementById(page + 'Page').classList.add('active');
                 document.querySelector(`[data-page="${page}"]`).classList.add('active');
@@ -1377,6 +1436,26 @@
                 pagesLoaded[hash] = false;
                 window.showPage(hash);
             };
+
+            // Mobile drill-down helpers
+            const isMobile = () => window.innerWidth <= 768;
+
+            window.mobileBack = function(page) {
+                if (page === 'actions') {
+                    document.getElementById('actionsPage').classList.remove('has-selection');
+                    currentAction = null;
+                    document.querySelectorAll('.action-item').forEach(el => el.classList.remove('selected'));
+                } else if (page === 'traces') {
+                    document.getElementById('tracesPage').classList.remove('has-selection');
+                    currentTraceSession = null;
+                    renderTracesSessions();
+                } else if (page === 'schedule') {
+                    document.getElementById('schedulePage').classList.remove('has-selection');
+                    selectedJob = null;
+                }
+            };
+
+
 
             // ============ ENCRYPTION ============
             async function deriveKey(password, salt) {
@@ -2255,6 +2334,7 @@
                 clearInterval(streamingInterval);
                 currentAction = actions.find(a => a.id === id);
                 if (!currentAction) return;
+                if (isMobile()) document.getElementById('actionsPage').classList.add('has-selection');
 
                 document.querySelectorAll('.action-item').forEach(el => el.classList.remove('selected'));
                 Array.from(document.querySelectorAll('.action-item')).find(el => el.textContent.includes(`#${currentAction.run_number}`))?.classList.add('selected');
@@ -2464,6 +2544,7 @@
             }
 
             window.selectJobDetail = function(jobId) {
+                if (isMobile()) document.getElementById('schedulePage').classList.add('has-selection');
                 selectedJob = jobId;
                 renderSchedule();
                 renderJobDetail();
@@ -3009,6 +3090,7 @@
 
             window.selectTraceSession = async function(sessionId) {
                 currentTraceSession = sessionId;
+                if (isMobile()) document.getElementById('tracesPage').classList.add('has-selection');
                 renderTracesSessions();
 
                 const titleEl = document.getElementById('traceDetailTitle');
