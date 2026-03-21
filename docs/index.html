@@ -511,7 +511,7 @@
                             Open in Bedrock ↗
                         </a>
                         <p id="tracesNoUrl" style="display:none;color:rgba(255,255,255,0.4);margin-top:16px;font-size:13px;">
-                            No traces URL configured. <a href="#" onclick="window.showPage('settings')" style="color:var(--accent, #6366f1);">Set it in Settings</a>.
+                            No traces URL configured. Go to <a href="#" onclick="window.showPage('agent')" style="color:var(--accent, #6366f1);">Agent</a> to load repo config, or <a href="#" onclick="window.showPage('settings')" style="color:var(--accent, #6366f1);">Settings</a> to set it manually.
                         </p>
                     </div>
                 </div>
@@ -693,9 +693,10 @@
                 </div>
                 <div class="card">
                     <h4>Traces</h4>
+                    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:12px;">Auto-loaded from <code>TRACES_URL</code> repo variable. You can override it below.</p>
                     <div class="form-group">
                         <label class="form-label">Traces URL</label>
-                        <input class="form-input" id="settingsTracesUrl" placeholder="https://...">
+                        <input class="form-input" id="settingsTracesUrl" placeholder="Auto-loaded from repo variables...">
                     </div>
                     <button class="btn btn-primary" onclick="window.saveTracesSettings()">Save</button>
                 </div>
@@ -1269,6 +1270,13 @@
                     if (document.getElementById('awsRegion')) document.getElementById('awsRegion').value = vars.AWS_REGION || 'us-west-2';
                     
                     window.updateProviderFields();
+                    
+                    // Auto-load Traces URL from repo variables (just like system prompt, model, etc.)
+                    if (vars.TRACES_URL) {
+                        config.traces.url = vars.TRACES_URL;
+                        localStorage.setItem('traces_url', vars.TRACES_URL);
+                        document.getElementById('settingsTracesUrl').value = vars.TRACES_URL;
+                    }
                     
                     Object.keys(PROVIDER_API_KEY_MAP).forEach(provider => {
                         const secretName = PROVIDER_API_KEY_MAP[provider];
