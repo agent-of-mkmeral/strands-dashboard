@@ -935,7 +935,7 @@
             #activitySummary > div:first-child > div { text-align: center; padding: 8px; background: var(--bg-primary); border-radius: var(--r-md); border: 1px solid var(--border-muted); }
             #activitySummary > div:first-child > div > div:last-child { font-size: 22px !important; }
 
-            #activityList, #activityInternalList { max-height: none !important; }
+            #activityContent .actions-list { max-height: none !important; }
 
             .job-detail { max-height: none !important; }
             .job-detail-header { flex-direction: column; gap: 8px; }
@@ -1097,10 +1097,14 @@
                         </div>
                     </div>
                 </div>
-                <h4>Recent External Actions</h4>
-                <div class="actions-list" id="activityList" style="max-height:500px;"></div>
-                <h4 style="margin-top:var(--sp-5);">Internal Actions (not counted)</h4>
-                <div class="actions-list" id="activityInternalList" style="max-height:300px;"></div>
+                <div style="display:flex;gap:4px;margin-bottom:var(--sp-4);flex-wrap:wrap;">
+                    <button class="issue-filter-tab active" data-activity-filter="all" onclick="window.activityFilter('all')">All</button>
+                    <button class="issue-filter-tab" data-activity-filter="external" onclick="window.activityFilter('external')">🌐 External</button>
+                    <button class="issue-filter-tab" data-activity-filter="internal" onclick="window.activityFilter('internal')">🏠 Internal</button>
+                </div>
+                <div id="activityContent">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
             </div>
             
             <div class="page" id="wildPage">
@@ -3523,18 +3527,18 @@
 
 // ============ ACTIVITY ============
             let activityData = { external_events: [], internal_events: [] };
+            let activityCurrentFilter = 'all';
             
             async function loadActivity(silent = false) {
                 if (!config.github.token || !config.github.repo) {
-                    document.getElementById('activityList').innerHTML = '<div class="empty-state"><div class="empty-icon">⚙️</div><p>Configure GitHub in settings</p></div>';
+                    document.getElementById('activityContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚙️</div><p>Configure GitHub in settings</p></div>';
                     return;
                 }
                 
-                const listContainer = document.getElementById('activityList');
-                const internalContainer = document.getElementById('activityInternalList');
+                const container = document.getElementById('activityContent');
                 
                 if (!silent) {
-                    listContainer.innerHTML = '<div class="action-item"><div class="action-title">Loading activity...</div></div>';
+                    container.innerHTML = '<div class="action-item"><div class="action-title">Loading activity...</div></div>';
                 }
                 
                 try {
@@ -3588,7 +3592,8 @@
                             created_at: event.created_at,
                             action: event.payload?.action || '',
                             url: getEventUrl(event),
-                            title: getEventTitle(event)
+                            title: getEventTitle(event),
+                            isExternal: isExternal
                         };
                         
                         if (isExternal) {
@@ -3612,47 +3617,72 @@
                     document.getElementById('activityStatus').style.color = canProceed ? 'rgba(255,255,255,0.9)' : 'rgba(255,200,200,0.9)';
                     document.getElementById('activityThrottleStatus').innerHTML = `<span class="badge">${external.length}/${limit} today</span>`;
                     
+                    // Update sub-tab badges
+                    document.querySelector('[data-activity-filter="all"]').innerHTML = `All <span class="badge" style="margin-left:4px;">${external.length + internal.length}</span>`;
+                    document.querySelector('[data-activity-filter="external"]').innerHTML = `🌐 External <span class="badge" style="margin-left:4px;">${external.length}</span>`;
+                    document.querySelector('[data-activity-filter="internal"]').innerHTML = `🏠 Internal <span class="badge" style="margin-left:4px;">${internal.length}</span>`;
+                    
                     // Progress bar
                     const progress = Math.min(100, (external.length / limit) * 100);
                     document.getElementById('activityProgressBar').style.width = `${progress}%`;
                     document.getElementById('activityProgressBar').style.background = canProceed ? 'rgba(255,255,255,0.8)' : 'rgba(255,100,100,0.8)';
                     
-                    // Render external events list
-                    if (external.length === 0) {
-                        listContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">🎉</div><p>No external actions in the last 24 hours</p></div>';
-                    } else {
-                        listContainer.innerHTML = external.map(evt => `
-                            <div class="action-item" ${evt.url ? `onclick="window.open('${evt.url}', '_blank')" style="cursor:pointer;"` : ''}>
-                                <div class="action-title">${getEventIcon(evt.type)} ${evt.title || evt.type}</div>
-                                <div class="action-meta">
-                                    <span>${evt.repo}</span> • 
-                                    <span>${formatDate(evt.created_at)}</span>
-                                    ${evt.action ? ` • <span>${evt.action}</span>` : ''}
-                                </div>
-                            </div>
-                        `).join('');
-                    }
-                    
-                    // Render internal events list
-                    if (internal.length === 0) {
-                        internalContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No internal actions in the last 24 hours</p></div>';
-                    } else {
-                        internalContainer.innerHTML = internal.map(evt => `
-                            <div class="action-item" ${evt.url ? `onclick="window.open('${evt.url}', '_blank')" style="cursor:pointer;"` : ''}>
-                                <div class="action-title">${getEventIcon(evt.type)} ${evt.title || evt.type}</div>
-                                <div class="action-meta">
-                                    <span>${evt.repo}</span> • 
-                                    <span>${formatDate(evt.created_at)}</span>
-                                    ${evt.action ? ` • <span>${evt.action}</span>` : ''}
-                                </div>
-                            </div>
-                        `).join('');
-                    }
+                    // Render based on current filter
+                    renderActivity();
                     
                 } catch (e) {
                     console.error('Activity load error:', e);
-                    listContainer.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Failed to load activity: ${e.message}</p></div>`;
+                    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Failed to load activity: ${e.message}</p></div>`;
                 }
+            }
+            
+            window.activityFilter = function(filter) {
+                activityCurrentFilter = filter;
+                document.querySelectorAll('[data-activity-filter]').forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-activity-filter="' + filter + '"]').classList.add('active');
+                renderActivity();
+            };
+            
+            function renderActivity() {
+                const container = document.getElementById('activityContent');
+                const external = activityData.external_events || [];
+                const internal = activityData.internal_events || [];
+                
+                let items = [];
+                if (activityCurrentFilter === 'all') {
+                    // Merge and sort by date
+                    items = [...external.map(e => ({...e, _tag: 'external'})), ...internal.map(e => ({...e, _tag: 'internal'}))];
+                    items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                } else if (activityCurrentFilter === 'external') {
+                    items = external.map(e => ({...e, _tag: 'external'}));
+                } else {
+                    items = internal.map(e => ({...e, _tag: 'internal'}));
+                }
+                
+                if (items.length === 0) {
+                    const emptyMsg = activityCurrentFilter === 'external' 
+                        ? 'No external actions in the last 24 hours'
+                        : activityCurrentFilter === 'internal'
+                        ? 'No internal actions in the last 24 hours'
+                        : 'No activity in the last 24 hours';
+                    const emptyIcon = activityCurrentFilter === 'external' ? '🎉' : activityCurrentFilter === 'internal' ? '📭' : '😴';
+                    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${emptyIcon}</div><p>${emptyMsg}</p></div>`;
+                    return;
+                }
+                
+                container.innerHTML = '<div class="actions-list" style="max-height:500px;">' + items.map(evt => {
+                    const tagBadge = activityCurrentFilter === 'all' 
+                        ? `<span class="badge" style="margin-left:6px;font-size:10px;opacity:0.7;">${evt._tag === 'external' ? '🌐' : '🏠'}</span>` 
+                        : '';
+                    return `<div class="action-item" ${evt.url ? `onclick="window.open('${evt.url}', '_blank')" style="cursor:pointer;"` : ''}>
+                        <div class="action-title">${getEventIcon(evt.type)} ${evt.title || evt.type}${tagBadge}</div>
+                        <div class="action-meta">
+                            <span>${evt.repo}</span> • 
+                            <span>${formatDate(evt.created_at)}</span>
+                            ${evt.action ? ` • <span>${evt.action}</span>` : ''}
+                        </div>
+                    </div>`;
+                }).join('') + '</div>';
             }
             
             function getEventIcon(type) {
