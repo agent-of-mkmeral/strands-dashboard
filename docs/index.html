@@ -2395,7 +2395,10 @@
                         if (!throttledTypes.has(eventType)) continue;
                         
                         const repoName = event.repo?.name || '';
-                        const isExternal = !repoName.startsWith(`${owner}/`);
+                        // Internal owners: agent's own account + user's account (mkmeral)
+                        const internalOwners = [owner.toLowerCase(), 'mkmeral'];
+                        const repoOwner = repoName.split('/')[0].toLowerCase();
+                        const isExternal = !internalOwners.includes(repoOwner);
                         
                         const eventSummary = {
                             type: eventType,
