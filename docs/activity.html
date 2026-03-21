@@ -44,6 +44,7 @@
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
             min-height: 100vh;
+            min-height: 100dvh;
         }
 
         ::-webkit-scrollbar { width: 6px; }
@@ -379,12 +380,80 @@
             text-align: center;
         }
 
+        /* ====== Mobile-First Overhaul ====== */
         @media (max-width: 768px) {
-            .container { padding: 16px; }
-            .header h1 { font-size: 22px; }
-            .overview-grid { grid-template-columns: repeat(2, 1fr); }
-            .overview-value { font-size: 32px; }
-            .item-title { font-size: 14px; }
+            .container {
+                padding: 14px;
+                padding-top: max(14px, env(safe-area-inset-top));
+                padding-bottom: max(14px, env(safe-area-inset-bottom));
+            }
+            .header h1 { font-size: 20px; }
+            .header-top { gap: 10px; }
+            .header-actions { gap: 6px; }
+            .back-link, .refresh-btn {
+                padding: 10px 14px;
+                font-size: 13px;
+                min-height: 40px;
+                display: flex;
+                align-items: center;
+            }
+
+            /* Stats: 2x2 grid */
+            .overview-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .overview-card { padding: 16px 12px; border-radius: 12px; }
+            .overview-value { font-size: 28px; }
+            .overview-label { font-size: 10px; }
+
+            /* Filter tabs: touch-friendly */
+            .filter-tab {
+                padding: 10px 16px;
+                min-height: 40px;
+                display: flex;
+                align-items: center;
+            }
+
+            /* Item cards: full width, better spacing */
+            .item-card { padding: 14px 16px; margin-bottom: 8px; border-radius: 12px; }
+            .item-top { gap: 12px; margin-bottom: 8px; }
+            .item-icon { width: 32px; height: 32px; font-size: 15px; }
+            .item-title { font-size: 14px; line-height: 1.4; }
+            .item-repo { font-size: 11px; }
+            .item-meta { gap: 8px; }
+
+            /* Section headers */
+            .section-header { font-size: 14px; }
+
+            /* Settings form: touch-friendly */
+            .form-input {
+                padding: 14px 16px;
+                font-size: 16px; /* prevents iOS zoom */
+                min-height: 48px;
+                border-radius: 12px;
+            }
+            .save-btn {
+                width: 100%;
+                padding: 14px 24px;
+                min-height: 48px;
+                font-size: 16px;
+            }
+            .settings-section { padding: 20px; }
+
+            /* Toast */
+            .toast {
+                left: 16px;
+                right: 16px;
+                text-align: center;
+            }
+        }
+
+        /* Extra small devices */
+        @media (max-width: 380px) {
+            .overview-value { font-size: 24px; }
+            .header h1 { font-size: 18px; }
+            .item-title { font-size: 13px; }
         }
     </style>
 </head>
