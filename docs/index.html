@@ -806,8 +806,10 @@
                 <div class="actions-header" style="margin-bottom:16px;">
                     <span>📈 Traces</span>
                     <div style="display:flex;gap:8px;align-items:center;">
+                        <span id="tracesCredsStatus" style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,0.05);"></span>
                         <span id="tracesStatus" style="font-size:12px;color:rgba(255,255,255,0.4);"></span>
                         <button class="btn btn-sm" onclick="window.fetchTracesList()" id="tracesListBtn">Load Sessions</button>
+                        <button class="btn btn-sm" onclick="window.refreshTraceCreds(true)" id="tracesCredsBtn" style="font-size:11px;">🔑 Refresh Creds</button>
                         <a id="tracesExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="text-decoration:none;display:none;">Bedrock ↗</a>
                     </div>
                 </div>
@@ -822,8 +824,8 @@
                         <div class="actions-list" id="tracesSessionList" style="max-height:calc(100vh - 240px);flex:1;">
                             <div class="empty-state" style="padding:40px 20px;">
                                 <div class="empty-icon">📊</div>
-                                <p style="font-size:13px;color:rgba(255,255,255,0.4);">Click "Load Sessions" to fetch trace sessions from CloudWatch via GitHub Actions.</p>
-                                <p style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:8px;">Uses OIDC — no AWS creds needed.</p>
+                                <p style="font-size:13px;color:rgba(255,255,255,0.4);">Click "Load Sessions" to query CloudWatch directly.</p>
+                                <p style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:8px;">Uses credential vending — scoped-down creds with 15-min TTL.</p>
                             </div>
                         </div>
                     </div>
@@ -1020,7 +1022,7 @@
                 </div>
                 <div class="card">
                     <h4>Traces</h4>
-                    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:12px;">Traces are fetched via <code>traces.yml</code> workflow (OIDC → CloudWatch). Optional: set <code>TRACES_URL</code> for direct Bedrock link.</p>
+                    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:12px;">Traces use <code>creds.yml</code> credential vending (scoped-down AWS creds, 15-min TTL). Dashboard queries CloudWatch directly. Optional: set <code>TRACES_URL</code> for Bedrock link.</p>
                     <div class="form-group">
                         <label class="form-label">Traces URL</label>
                         <input class="form-input" id="settingsTracesUrl" placeholder="Auto-loaded from repo variables...">
@@ -2406,11 +2408,17 @@
 
             window.closeScheduleModal = function() { document.getElementById('scheduleModal').classList.remove('active'); };
 
-            // ============ TRACES ============
-            // ============ TRACES (CloudWatch via GitHub Actions proxy) ============
+            // ============ TRACES (Credential Vending + Direct CloudWatch) ============
+            // Architecture:
+            //   1. Dashboard triggers creds.yml workflow (once per ~10 min)
+            //   2. Workflow vends scoped-down AWS creds (CloudWatch Logs read-only, 15-min TTL)
+            //   3. Dashboard downloads creds artifact and queries CloudWatch directly (~1-3s per query)
+            //   4. Auto-refresh creds every 10 min
+
             let tracesData = null;
             let currentTraceSession = null;
-            let tracesPollInterval = null;
+            let tracesCreds = null; // { accessKeyId, secretAccessKey, sessionToken, expiration, region, logGroup }
+            let tracesCredsRefreshTimer = null;
 
             async function loadTraces(silent = false) {
                 // Show Bedrock link if configured
@@ -2419,24 +2427,69 @@
                     link.href = config.traces.url;
                     link.style.display = 'inline-flex';
                 }
+                updateCredsStatus();
             }
 
-            window.fetchTracesList = async function() {
-                const btn = document.getElementById('tracesListBtn');
+            function updateCredsStatus() {
+                const el = document.getElementById('tracesCredsStatus');
+                if (!el) return;
+                if (!tracesCreds) {
+                    el.textContent = '🔴 No creds';
+                    el.style.color = 'rgba(255,100,100,0.7)';
+                    return;
+                }
+                const exp = new Date(tracesCreds.expiration);
+                const remaining = Math.max(0, Math.round((exp - Date.now()) / 1000));
+                if (remaining <= 0) {
+                    el.textContent = '🔴 Expired';
+                    el.style.color = 'rgba(255,100,100,0.7)';
+                    tracesCreds = null;
+                } else if (remaining < 120) {
+                    el.textContent = `🟡 ${Math.round(remaining / 60)}m left`;
+                    el.style.color = 'rgba(255,200,50,0.7)';
+                } else {
+                    el.textContent = `🟢 ${Math.round(remaining / 60)}m left`;
+                    el.style.color = 'rgba(100,255,100,0.7)';
+                }
+            }
+
+            // Refresh creds status every 30s
+            setInterval(updateCredsStatus, 30000);
+
+            async function ensureCreds() {
+                // Check if we have valid creds with > 2 min remaining
+                if (tracesCreds) {
+                    const exp = new Date(tracesCreds.expiration);
+                    const remaining = (exp - Date.now()) / 1000;
+                    if (remaining > 120) return tracesCreds;
+                }
+                // Need fresh creds
+                return await window.refreshTraceCreds(false);
+            }
+
+            window.refreshTraceCreds = async function(manual = false) {
+                const credsBtn = document.getElementById('tracesCredsBtn');
                 const status = document.getElementById('tracesStatus');
-                btn.disabled = true;
-                btn.textContent = 'Triggering...';
-                status.textContent = '';
+                if (credsBtn) { credsBtn.disabled = true; credsBtn.textContent = '🔑 Vending...'; }
 
                 try {
-                    // Step 1: Trigger the traces.yml workflow via workflow_dispatch
-                    const dispatchRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/dispatches`, {
+                    // Step 1: Check for existing recent creds artifact
+                    if (!manual) {
+                        const existing = await fetchExistingCredsArtifact();
+                        if (existing) {
+                            tracesCreds = existing;
+                            updateCredsStatus();
+                            if (credsBtn) { credsBtn.disabled = false; credsBtn.textContent = '🔑 Refresh Creds'; }
+                            return tracesCreds;
+                        }
+                    }
+
+                    // Step 2: Trigger creds.yml workflow
+                    if (status) status.textContent = 'Triggering credential vending...';
+                    const dispatchRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/creds.yml/dispatches`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ref: 'main',
-                            inputs: { action: 'list', hours_back: '168' }
-                        })
+                        body: JSON.stringify({ ref: 'main', inputs: {} })
                     });
 
                     if (!dispatchRes.ok) {
@@ -2444,148 +2497,424 @@
                         throw new Error(`Dispatch failed (${dispatchRes.status}): ${errText}`);
                     }
 
-                    status.textContent = 'Workflow triggered, waiting...';
-                    btn.textContent = 'Waiting...';
+                    if (status) status.textContent = 'Waiting for creds (~15s)...';
+                    await new Promise(r => setTimeout(r, 3000));
 
-                    // Step 2: Poll for the workflow run to complete
-                    await new Promise(r => setTimeout(r, 3000)); // Wait 3s for run to appear
+                    // Step 3: Poll for the workflow to complete
+                    const runData = await pollForCredsRun();
+                    if (!runData) throw new Error('Credential vending workflow timed out');
 
-                    const runData = await pollForTraceRun('list');
-                    if (!runData) throw new Error('Workflow run not found or timed out');
+                    // Step 4: Download the creds artifact
+                    if (status) status.textContent = 'Downloading credentials...';
+                    const creds = await downloadCredsArtifact(runData.id);
+                    if (!creds) throw new Error('Failed to download credentials artifact');
 
-                    // Step 3: Download the artifact
-                    status.textContent = 'Downloading results...';
-                    const artifactData = await downloadTraceArtifact(runData.id);
+                    tracesCreds = creds;
+                    updateCredsStatus();
+                    if (status) status.textContent = '';
 
-                    if (artifactData) {
-                        tracesData = artifactData;
-                        renderTracesSessions();
-                        status.textContent = `${artifactData.total_sessions || 0} sessions found`;
-                    } else {
-                        status.textContent = 'No data in artifact';
+                    // Set up auto-refresh timer (every 10 min)
+                    if (tracesCredsRefreshTimer) clearInterval(tracesCredsRefreshTimer);
+                    tracesCredsRefreshTimer = setInterval(() => window.refreshTraceCreds(false), 10 * 60 * 1000);
+
+                    return tracesCreds;
+                } catch (e) {
+                    if (status) status.textContent = `Creds error: ${e.message}`;
+                    console.error('Credential vending error:', e);
+                    return null;
+                } finally {
+                    if (credsBtn) { credsBtn.disabled = false; credsBtn.textContent = '🔑 Refresh Creds'; }
+                }
+            };
+
+            async function fetchExistingCredsArtifact() {
+                try {
+                    // Check for recent creds.yml runs (completed in last 10 min)
+                    const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/creds.yml/runs?per_page=3&status=completed`, {
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    const runs = data.workflow_runs || [];
+
+                    // Find a recent successful run (within last 10 min)
+                    const recentRun = runs.find(r => {
+                        const updatedAt = new Date(r.updated_at).getTime();
+                        return (Date.now() - updatedAt) < 600000 && r.conclusion === 'success';
+                    });
+
+                    if (!recentRun) return null;
+
+                    const creds = await downloadCredsArtifact(recentRun.id);
+                    if (!creds) return null;
+
+                    // Verify creds aren't expired
+                    const exp = new Date(creds.expiration);
+                    const remaining = (exp - Date.now()) / 1000;
+                    if (remaining < 120) return null; // Less than 2 min left, get fresh
+
+                    return creds;
+                } catch (e) {
+                    console.warn('Existing creds check failed:', e);
+                    return null;
+                }
+            }
+
+            async function pollForCredsRun(maxWait = 90) {
+                const startTime = Date.now();
+                while (Date.now() - startTime < maxWait * 1000) {
+                    try {
+                        // Check completed runs
+                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/creds.yml/runs?per_page=5&status=completed`, {
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const recentRun = (data.workflow_runs || []).find(r => {
+                                const updatedAt = new Date(r.updated_at).getTime();
+                                return (Date.now() - updatedAt) < 120000 && r.conclusion === 'success';
+                            });
+                            if (recentRun) return recentRun;
+                        }
+
+                        // Check in-progress runs
+                        const ipRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/creds.yml/runs?per_page=3&status=in_progress`, {
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (ipRes.ok) {
+                            const ipData = await ipRes.json();
+                            if ((ipData.workflow_runs || []).length > 0) {
+                                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                                const status = document.getElementById('tracesStatus');
+                                if (status) status.textContent = `Vending creds (${elapsed}s)...`;
+                            }
+                        }
+                    } catch (e) { console.warn('Poll error:', e); }
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+                return null;
+            }
+
+            async function downloadCredsArtifact(runId) {
+                try {
+                    const artRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${runId}/artifacts`, {
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    if (!artRes.ok) return null;
+                    const artData = await artRes.json();
+                    const artifact = (artData.artifacts || []).find(a => a.name === 'dashboard-creds');
+                    if (!artifact) return null;
+
+                    const dlRes = await fetch(artifact.archive_download_url, {
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    if (!dlRes.ok) return null;
+
+                    const zip = await (await dlRes.blob()).arrayBuffer();
+                    const jsonStr = await unzipFirstFile(zip);
+                    return JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error('Creds artifact download error:', e);
+                    return null;
+                }
+            }
+
+            // === Direct CloudWatch Queries (using vended creds) ===
+
+            async function cwStartQuery(queryString, logGroup, hoursBack = 168) {
+                const creds = await ensureCreds();
+                if (!creds) throw new Error('No AWS credentials available. Click "🔑 Refresh Creds" first.');
+
+                const region = creds.region || 'us-west-2';
+                const lg = logGroup || creds.logGroup || '/aws/bedrock-agentcore/runtimes/strands-coder';
+                const endTime = Math.floor(Date.now() / 1000);
+                const startTime = endTime - (hoursBack * 3600);
+
+                const body = JSON.stringify({
+                    logGroupName: lg,
+                    startTime: startTime,
+                    endTime: endTime,
+                    queryString: queryString,
+                    limit: 10000
+                });
+
+                const res = await awsSignedRequest('POST', `https://logs.${region}.amazonaws.com/`, {
+                    'Content-Type': 'application/x-amz-json-1.1',
+                    'X-Amz-Target': 'Logs_20140328.StartQuery'
+                }, body, creds, region, 'logs');
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(`CloudWatch StartQuery failed: ${JSON.stringify(data)}`);
+                return data.queryId;
+            }
+
+            async function cwGetQueryResults(queryId) {
+                const creds = tracesCreds;
+                if (!creds) throw new Error('No credentials');
+                const region = creds.region || 'us-west-2';
+
+                const body = JSON.stringify({ queryId: queryId });
+                const res = await awsSignedRequest('POST', `https://logs.${region}.amazonaws.com/`, {
+                    'Content-Type': 'application/x-amz-json-1.1',
+                    'X-Amz-Target': 'Logs_20140328.GetQueryResults'
+                }, body, creds, region, 'logs');
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(`CloudWatch GetQueryResults failed: ${JSON.stringify(data)}`);
+                return data;
+            }
+
+            async function cwPollQuery(queryId, maxWait = 60) {
+                const startTime = Date.now();
+                while (Date.now() - startTime < maxWait * 1000) {
+                    const result = await cwGetQueryResults(queryId);
+                    if (['Complete', 'Failed', 'Cancelled', 'Timeout'].includes(result.status)) {
+                        return result;
                     }
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                throw new Error('CloudWatch query timed out');
+            }
+
+            // AWS Signature V4 for browser requests
+            async function awsSignedRequest(method, url, headers, body, creds, region, service) {
+                const urlObj = new URL(url);
+                const host = urlObj.hostname;
+                const now = new Date();
+                const dateStamp = now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                const shortDate = dateStamp.slice(0, 8);
+
+                // Canonical headers
+                const signedHeaders = 'content-type;host;x-amz-date;x-amz-security-token;x-amz-target';
+                const allHeaders = {
+                    ...headers,
+                    'host': host,
+                    'x-amz-date': dateStamp,
+                    'x-amz-security-token': creds.sessionToken
+                };
+
+                const canonicalHeaders = Object.keys(allHeaders)
+                    .sort()
+                    .map(k => `${k.toLowerCase()}:${allHeaders[k].trim()}`)
+                    .join('\n') + '\n';
+
+                // Hash body
+                const bodyHash = await sha256Hex(body || '');
+
+                // Canonical request
+                const canonicalRequest = [
+                    method, '/', '', canonicalHeaders, signedHeaders, bodyHash
+                ].join('\n');
+
+                // String to sign
+                const credentialScope = `${shortDate}/${region}/${service}/aws4_request`;
+                const stringToSign = [
+                    'AWS4-HMAC-SHA256', dateStamp, credentialScope,
+                    await sha256Hex(canonicalRequest)
+                ].join('\n');
+
+                // Signing key
+                const kDate = await hmacSha256(new TextEncoder().encode('AWS4' + creds.secretAccessKey), shortDate);
+                const kRegion = await hmacSha256(kDate, region);
+                const kService = await hmacSha256(kRegion, service);
+                const kSigning = await hmacSha256(kService, 'aws4_request');
+
+                // Signature
+                const signature = await hmacSha256Hex(kSigning, stringToSign);
+
+                // Authorization header
+                const authHeader = `AWS4-HMAC-SHA256 Credential=${creds.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+                return fetch(url, {
+                    method: method,
+                    headers: {
+                        ...headers,
+                        'X-Amz-Date': dateStamp,
+                        'X-Amz-Security-Token': creds.sessionToken,
+                        'Authorization': authHeader
+                    },
+                    body: body
+                });
+            }
+
+            async function sha256Hex(message) {
+                const msgBuffer = new TextEncoder().encode(message);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            async function hmacSha256(key, message) {
+                const keyData = typeof key === 'string' ? new TextEncoder().encode(key) : key;
+                const msgData = typeof message === 'string' ? new TextEncoder().encode(message) : message;
+                const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+                const sig = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+                return new Uint8Array(sig);
+            }
+
+            async function hmacSha256Hex(key, message) {
+                const sig = await hmacSha256(key, message);
+                return Array.from(sig).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            // === Session List (direct CloudWatch query) ===
+
+            window.fetchTracesList = async function() {
+                const btn = document.getElementById('tracesListBtn');
+                const status = document.getElementById('tracesStatus');
+                btn.disabled = true;
+                btn.textContent = 'Querying...';
+                status.textContent = '';
+
+                try {
+                    // Ensure we have creds
+                    const creds = await ensureCreds();
+                    if (!creds) throw new Error('Failed to get credentials');
+
+                    status.textContent = 'Querying CloudWatch...';
+
+                    // Query for unique session IDs
+                    const query = `fields @message
+                        | parse @message /session[.\\/]id["\\'::\\s]*(?<sid>[^"\\',}\\s]+)/
+                        | filter ispresent(sid)
+                        | stats count(*) as span_count, min(@timestamp) as first_seen, max(@timestamp) as last_seen by sid
+                        | sort last_seen desc
+                        | limit 100`;
+
+                    const queryId = await cwStartQuery(query, creds.logGroup);
+                    status.textContent = 'Waiting for results...';
+                    const result = await cwPollQuery(queryId);
+
+                    if (result.status !== 'Complete') throw new Error(`Query ${result.status}`);
+
+                    // Parse results into sessions
+                    const sessions = (result.results || []).map(row => {
+                        const entry = {};
+                        row.forEach(f => { entry[f.field] = f.value; });
+                        return entry;
+                    }).filter(s => s.sid);
+
+                    tracesData = { sessions: sessions, total_sessions: sessions.length };
+                    renderTracesSessions();
+                    status.textContent = `${sessions.length} sessions (direct query)`;
                 } catch (e) {
                     status.textContent = `Error: ${e.message}`;
-                    console.error('Traces fetch error:', e);
+                    console.error('Traces list error:', e);
                 } finally {
                     btn.disabled = false;
                     btn.textContent = 'Load Sessions';
                 }
             };
 
-            async function pollForTraceRun(action, maxWait = 120) {
-                const startTime = Date.now();
-                while (Date.now() - startTime < maxWait * 1000) {
-                    try {
-                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/runs?per_page=5&status=completed`, {
-                            headers: { 'Authorization': `Bearer ${config.github.token}` }
-                        });
-                        if (!res.ok) throw new Error(`API: ${res.status}`);
+            // === Session Detail (direct CloudWatch query) ===
 
-                        const data = await res.json();
-                        const runs = data.workflow_runs || [];
+            window.selectTraceSession = async function(sessionId) {
+                currentTraceSession = sessionId;
+                renderTracesSessions();
 
-                        // Find a recent completed run (within last 3 minutes)
-                        const recentRun = runs.find(r => {
-                            const updatedAt = new Date(r.updated_at).getTime();
-                            return (Date.now() - updatedAt) < 180000 && r.conclusion === 'success';
-                        });
+                const titleEl = document.getElementById('traceDetailTitle');
+                const metaEl = document.getElementById('traceDetailMeta');
+                const contentEl = document.getElementById('traceDetailContent');
 
-                        if (recentRun) return recentRun;
+                titleEl.textContent = sessionId;
+                metaEl.textContent = 'Querying...';
+                contentEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-                        // Also check in-progress runs
-                        const inProgressRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/runs?per_page=5&status=in_progress`, {
-                            headers: { 'Authorization': `Bearer ${config.github.token}` }
-                        });
-                        const inProgressData = await inProgressRes.json();
-                        const inProgressRuns = inProgressData.workflow_runs || [];
-
-                        if (inProgressRuns.length > 0) {
-                            document.getElementById('tracesStatus').textContent = `Running (${Math.round((Date.now() - startTime) / 1000)}s)...`;
-                        }
-                    } catch (e) {
-                        console.warn('Poll error:', e);
-                    }
-                    await new Promise(r => setTimeout(r, 3000));
-                }
-                return null;
-            }
-
-            async function downloadTraceArtifact(runId) {
                 try {
-                    // List artifacts for the run
-                    const artRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${runId}/artifacts`, {
-                        headers: { 'Authorization': `Bearer ${config.github.token}` }
-                    });
-                    if (!artRes.ok) return null;
+                    const creds = await ensureCreds();
+                    if (!creds) throw new Error('No credentials');
 
-                    const artData = await artRes.json();
-                    const artifact = (artData.artifacts || []).find(a => a.name.startsWith('traces-'));
-                    if (!artifact) return null;
+                    // Query CloudWatch directly for this session's spans
+                    const query = `fields @message, @timestamp | filter @message like '${sessionId}' | sort @timestamp asc | limit 10000`;
+                    const queryId = await cwStartQuery(query, creds.logGroup);
+                    metaEl.textContent = 'Waiting for results...';
+                    const result = await cwPollQuery(queryId);
 
-                    // Download the artifact (zip)
-                    const dlRes = await fetch(artifact.archive_download_url, {
-                        headers: { 'Authorization': `Bearer ${config.github.token}` }
-                    });
-                    if (!dlRes.ok) return null;
+                    if (result.status !== 'Complete') throw new Error(`Query ${result.status}`);
 
-                    // Unzip and parse JSON
-                    const blob = await dlRes.blob();
-                    const zip = await (new Response(blob)).arrayBuffer();
+                    // Parse spans
+                    const spans = [];
+                    for (const row of (result.results || [])) {
+                        const entry = {};
+                        row.forEach(f => { entry[f.field] = f.value; });
 
-                    // GitHub artifacts are zipped - use JSZip or manual unzip
-                    // For simplicity, we'll use the built-in DecompressionStream if available,
-                    // or fall back to a minimal zip parser
-                    const jsonStr = await unzipFirstFile(zip);
-                    return JSON.parse(jsonStr);
+                        const message = entry['@message'] || '';
+                        const timestamp = entry['@timestamp'] || '';
+
+                        try {
+                            const parsed = JSON.parse(message);
+                            const span = parseOtelSpan(parsed, timestamp);
+                            if (span) {
+                                if (Array.isArray(span)) spans.push(...span);
+                                else spans.push(span);
+                            }
+                        } catch {
+                            spans.push({ type: 'raw', timestamp, message: message.slice(0, 500) });
+                        }
+                    }
+
+                    // Build trace structure
+                    const trace = buildTraceStructure(spans, sessionId);
+                    const traceData = {
+                        session_id: sessionId,
+                        total_spans: spans.length,
+                        trace: trace,
+                        spans: spans
+                    };
+
+                    renderTraceDetail(traceData);
+                    metaEl.textContent = `${spans.length} spans (direct query)`;
                 } catch (e) {
-                    console.error('Artifact download error:', e);
-                    return null;
+                    metaEl.textContent = `Error: ${e.message}`;
+                    contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
                 }
+            };
+
+            function parseOtelSpan(data, fallbackTimestamp) {
+                if (data.name && data.traceId) {
+                    return { type: 'span', name: data.name, trace_id: data.traceId, span_id: data.spanId || '', parent_span_id: data.parentSpanId || '', start_time: data.startTimeUnixNano || '', end_time: data.endTimeUnixNano || '', status: data.status || {}, attributes: data.attributes || {}, timestamp: fallbackTimestamp };
+                }
+                if (data.resourceSpans) {
+                    const spans = [];
+                    for (const rs of (data.resourceSpans || [])) {
+                        for (const ss of (rs.scopeSpans || [])) {
+                            for (const span of (ss.spans || [])) {
+                                spans.push({ type: 'span', name: span.name || '', trace_id: span.traceId || '', span_id: span.spanId || '', parent_span_id: span.parentSpanId || '', start_time: span.startTimeUnixNano || '', end_time: span.endTimeUnixNano || '', status: span.status || {}, attributes: span.attributes || {}, timestamp: fallbackTimestamp });
+                            }
+                        }
+                    }
+                    return spans.length === 1 ? spans[0] : spans.length > 1 ? spans : null;
+                }
+                if (data.body || data.attributes) {
+                    const attrs = data.attributes || {};
+                    let spanType = 'log';
+                    if (typeof attrs === 'object') {
+                        if (JSON.stringify(attrs).includes('gen_ai.prompt') || JSON.stringify(attrs).includes('gen_ai.completion')) spanType = 'inference';
+                        else if (JSON.stringify(attrs).includes('tool.name')) spanType = 'tool';
+                    }
+                    return { type: spanType, attributes: attrs, body: typeof data.body === 'string' ? data.body : JSON.stringify(data.body || '').slice(0, 2000), timestamp: fallbackTimestamp };
+                }
+                return { type: 'unknown', data: JSON.stringify(data).slice(0, 1000), timestamp: fallbackTimestamp };
             }
 
-            async function unzipFirstFile(buffer) {
-                // Minimal ZIP parser - finds the first file in the archive
-                const view = new DataView(buffer);
-                let offset = 0;
-
-                // Find local file header signature (0x04034b50)
-                while (offset < buffer.byteLength - 4) {
-                    if (view.getUint32(offset, true) === 0x04034b50) break;
-                    offset++;
-                }
-
-                if (offset >= buffer.byteLength - 30) throw new Error('No ZIP file found');
-
-                const compressionMethod = view.getUint16(offset + 8, true);
-                const compressedSize = view.getUint32(offset + 18, true);
-                const uncompressedSize = view.getUint32(offset + 22, true);
-                const fileNameLen = view.getUint16(offset + 26, true);
-                const extraLen = view.getUint16(offset + 28, true);
-                const dataOffset = offset + 30 + fileNameLen + extraLen;
-
-                const compressedData = new Uint8Array(buffer, dataOffset, compressedSize || (buffer.byteLength - dataOffset));
-
-                if (compressionMethod === 0) {
-                    // Stored (no compression)
-                    return new TextDecoder().decode(compressedData);
-                } else if (compressionMethod === 8) {
-                    // Deflated - use DecompressionStream
-                    const ds = new DecompressionStream('raw');
-                    const writer = ds.writable.getWriter();
-                    writer.write(compressedData);
-                    writer.close();
-                    const reader = ds.readable.getReader();
-                    let result = '';
-                    const decoder = new TextDecoder();
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        result += decoder.decode(value, { stream: true });
+            function buildTraceStructure(spans, sessionId) {
+                const conversations = []; const toolCalls = []; let currentTurn = null;
+                for (const span of spans) {
+                    const type = span.type || 'unknown';
+                    const attrs = span.attributes || {};
+                    if (type === 'inference') {
+                        currentTurn = { type: 'inference', prompt: String(attrs['gen_ai.prompt'] || '').slice(0, 2000), completion: String(attrs['gen_ai.completion'] || '').slice(0, 2000), timestamp: span.timestamp || '', tool_calls: [] };
+                        conversations.push(currentTurn);
+                    } else if (type === 'tool') {
+                        const entry = { type: 'tool', name: String(attrs['tool.name'] || 'unknown'), input: String(attrs['tool.input'] || '').slice(0, 1000), output: String(attrs['tool.output'] || '').slice(0, 1000), timestamp: span.timestamp || '' };
+                        toolCalls.push(entry);
+                        if (currentTurn) currentTurn.tool_calls.push(entry);
+                    } else if (type === 'span') {
+                        const entry = { type: 'span', name: span.name || '', trace_id: span.trace_id || '', span_id: span.span_id || '', parent_span_id: span.parent_span_id || '', timestamp: span.timestamp || '', duration_ns: '' };
+                        if (span.start_time && span.end_time) { try { entry.duration_ns = String(parseInt(span.end_time) - parseInt(span.start_time)); } catch {} }
+                        conversations.push(entry);
                     }
-                    return result;
                 }
-                throw new Error(`Unsupported compression: ${compressionMethod}`);
+                return { session_id: sessionId, conversations, tool_calls: toolCalls, total_turns: conversations.length, total_tool_calls: toolCalls.length };
             }
 
             function renderTracesSessions() {
@@ -2609,11 +2938,9 @@
                     const spanCount = s.span_count || '?';
                     const lastSeen = s.last_seen || '';
 
-                    // Extract run ID from session ID pattern: gh-owner-repo-RUNID
                     const runMatch = sid.match(/-(\d{8,})$/);
                     const runId = runMatch ? runMatch[1] : '';
 
-                    // Shorten display name
                     let displayName = sid;
                     if (sid.startsWith('gh-')) {
                         const parts = sid.split('-');
@@ -2636,53 +2963,6 @@
                 }).join('');
             }
 
-            window.selectTraceSession = async function(sessionId) {
-                currentTraceSession = sessionId;
-                renderTracesSessions(); // Update selection highlight
-
-                const titleEl = document.getElementById('traceDetailTitle');
-                const metaEl = document.getElementById('traceDetailMeta');
-                const contentEl = document.getElementById('traceDetailContent');
-
-                titleEl.textContent = sessionId;
-                metaEl.textContent = 'Fetching...';
-                contentEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-                try {
-                    // Trigger a fetch workflow for this specific session
-                    const dispatchRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/traces.yml/dispatches`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ref: 'main',
-                            inputs: { action: 'fetch', session_id: sessionId, hours_back: '168' }
-                        })
-                    });
-
-                    if (!dispatchRes.ok) throw new Error(`Dispatch failed: ${dispatchRes.status}`);
-
-                    metaEl.textContent = 'Workflow running...';
-                    await new Promise(r => setTimeout(r, 3000));
-
-                    const runData = await pollForTraceRun('fetch');
-                    if (!runData) throw new Error('Timed out waiting for trace fetch');
-
-                    metaEl.textContent = 'Downloading...';
-                    const traceData = await downloadTraceArtifact(runData.id);
-
-                    if (traceData) {
-                        renderTraceDetail(traceData);
-                        metaEl.textContent = `${traceData.total_spans || 0} spans`;
-                    } else {
-                        contentEl.innerHTML = '<div class="empty-state"><p>No trace data found</p></div>';
-                        metaEl.textContent = 'No data';
-                    }
-                } catch (e) {
-                    metaEl.textContent = `Error: ${e.message}`;
-                    contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
-                }
-            };
-
             function renderTraceDetail(data) {
                 const contentEl = document.getElementById('traceDetailContent');
                 const trace = data.trace || {};
@@ -2694,7 +2974,6 @@
                     return;
                 }
 
-                // Build the conversation view (Langfuse-like)
                 let html = '';
 
                 // Summary stats
@@ -2713,7 +2992,6 @@
                     </div>
                 </div>`;
 
-                // Render each span in a timeline
                 html += '<div style="display:flex;flex-direction:column;gap:8px;">';
 
                 for (const span of spans) {
@@ -2726,7 +3004,7 @@
                         const prompt = attrs['gen_ai.prompt'] || '';
                         const completion = attrs['gen_ai.completion'] || '';
 
-                        if (prompt) {
+                        if (prompt || completion) {
                             html += `<div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:12px;padding:14px 16px;">
                                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                                     <span style="font-size:12px;font-weight:600;color:var(--accent-light);">🧠 Inference</span>
@@ -2772,7 +3050,6 @@
                             <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:'SF Mono',monospace;white-space:pre-wrap;max-height:100px;overflow-y:auto;">${escapeHtml(String(span.message || span.data || '').slice(0, 300))}</div>
                         </div>`;
                     } else {
-                        // log, unknown
                         const body = span.body || span.data || '';
                         if (body) {
                             html += `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 12px;">
@@ -2797,57 +3074,33 @@
                 contentEl.innerHTML = html;
             }
 
-            
-            window.togglePromptView = function(view) {
-                document.getElementById('editPromptBtn').classList.toggle('active', view === 'edit');
-                document.getElementById('previewPromptBtn').classList.toggle('active', view === 'preview');
-                
-                const textarea = document.getElementById('systemPromptInput');
-                const preview = document.getElementById('systemPromptPreview');
-                
-                if (view === 'preview') {
-                    textarea.style.display = 'none';
-                    preview.classList.add('active');
-                    preview.innerHTML = marked.parse(textarea.value || '*No content*');
-                } else {
-                    textarea.style.display = 'block';
-                    preview.classList.remove('active');
+            async function unzipFirstFile(buffer) {
+                const view = new DataView(buffer);
+                let offset = 0;
+                while (offset < buffer.byteLength - 4) {
+                    if (view.getUint32(offset, true) === 0x04034b50) break;
+                    offset++;
                 }
-            };
-
-            window.openFullscreenPrompt = function() {
-                const content = document.getElementById('systemPromptInput').value;
-                document.getElementById('fullscreenPromptContent').innerHTML = marked.parse(content || '*No content*');
-                document.getElementById('fullscreenPromptModal').classList.add('active');
-            };
-
-            window.closeFullscreenPrompt = function() {
-                document.getElementById('fullscreenPromptModal').classList.remove('active');
-            };
-
-            window.highlightTools = function(el) {
-                // Add visual feedback for tool syntax (done via CSS with monospace font)
-            };
-
-            window.formatJSON = function(fieldId) {
-                const el = document.getElementById(fieldId);
-                try {
-                    const parsed = JSON.parse(el.value);
-                    el.value = JSON.stringify(parsed, null, 2);
-                    showToast('Formatted!');
-                } catch (e) {
-                    showToast('Invalid JSON');
+                if (offset >= buffer.byteLength - 30) throw new Error('No ZIP file found');
+                const compressionMethod = view.getUint16(offset + 8, true);
+                const compressedSize = view.getUint32(offset + 18, true);
+                const fileNameLen = view.getUint16(offset + 26, true);
+                const extraLen = view.getUint16(offset + 28, true);
+                const dataOffset = offset + 30 + fileNameLen + extraLen;
+                const compressedData = new Uint8Array(buffer, dataOffset, compressedSize || (buffer.byteLength - dataOffset));
+                if (compressionMethod === 0) return new TextDecoder().decode(compressedData);
+                if (compressionMethod === 8) {
+                    const ds = new DecompressionStream('raw');
+                    const writer = ds.writable.getWriter();
+                    writer.write(compressedData); writer.close();
+                    const reader = ds.readable.getReader();
+                    let result = ''; const decoder = new TextDecoder();
+                    while (true) { const { done, value } = await reader.read(); if (done) break; result += decoder.decode(value, { stream: true }); }
+                    return result;
                 }
-            };
+                throw new Error(`Unsupported compression: ${compressionMethod}`);
+            }
 
-            window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; };
-            function formatDate(d) { if (!d) return '-'; const diff = (Date.now() - new Date(d)) / 1000; return diff < 60 ? 'now' : diff < 3600 ? `${Math.floor(diff / 60)}m` : diff < 86400 ? `${Math.floor(diff / 3600)}h` : new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' }); }
-            function formatDuration(s) { return !s || s < 0 ? '-' : s < 1 ? `${(s * 1000).toFixed(0)}ms` : s < 60 ? `${s.toFixed(1)}s` : `${(s / 60).toFixed(1)}m`; }
-            function formatTokens(t) { return !t ? '-' : t >= 1e6 ? `${(t / 1e6).toFixed(1)}M` : t >= 1e3 ? `${(t / 1e3).toFixed(1)}K` : t.toString(); }
-            function truncate(str, len) { return str?.length > len ? str.slice(0, len) + '...' : str || ''; }
-            function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-            function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show'; setTimeout(() => t.classList.remove('show'), 3000); }
-            
             
             // ============ WILD (In the Wild) ============
             let wildPRs = [];
