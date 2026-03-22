@@ -1,0 +1,16 @@
+{
+  "name": "Strands Dashboard",
+  "short_name": "Strands",
+  "start_url": "/strands-dashboard/",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "description": "Agent monitoring & control dashboard",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
