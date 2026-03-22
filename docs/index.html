@@ -198,6 +198,7 @@
                         <button @click="issueFilterState = f; renderIssues()" class="text-xs font-medium px-3 py-1.5 rounded-md transition-colors capitalize"
                             :class="issueFilterState === f ? 'bg-accent text-white' : 'text-txt-muted hover:text-txt hover:bg-bg-hover'" x-text="f"></button>
                     </template>
+                    <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
                 <div class="flex-1 flex min-h-0">
                     <!-- List -->
@@ -244,6 +245,7 @@
                     <span x-show="filteredIssueNum !== null" @click="filteredIssueNum = null; renderActions()" class="text-[11px] text-accent bg-accent-muted px-2 py-0.5 rounded-full cursor-pointer">
                         Issue #<span x-text="filteredIssueNum"></span> ✕
                     </span>
+                    <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
                 <div class="flex-1 flex min-h-0">
                     <!-- List -->
@@ -284,6 +286,7 @@
                     <button @click="navigate('activity')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'activity' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📊 Activity</button>
                     <button @click="navigate('wild')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'wild' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">🌍 Wild</button>
                     <button @click="navigate('traces')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'traces' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📈 Traces</button>
+                    <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
 
                 <!-- Activity sub-view -->
@@ -379,6 +382,7 @@
                     <button @click="navigate('agent')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'agent' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">🤖 Agent</button>
                     <button @click="navigate('schedule')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'schedule' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📅 Schedule</button>
                     <button @click="navigate('settings')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'settings' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">⚙️ Settings</button>
+                    <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
 
                 <!-- Agent sub-view -->
