@@ -101,7 +101,7 @@
         </aside>
 
         <!-- Main Content Area -->
-        <main class="flex-1 flex flex-col min-w-0 pb-16 lg:pb-0">
+        <main class="flex-1 flex flex-col min-w-0 pb-16 lg:pb-14">
 
             <!-- ===== HOME ===== -->
             <div x-show="page === 'home'" x-cloak class="flex-1 overflow-y-auto p-4 lg:p-6 animate-in">
@@ -593,7 +593,7 @@
             // ===== STATE =====
             page: 'home',
             config: {
-                github: { token: localStorage.getItem('gh_token') || '', repo: localStorage.getItem('gh_repo') || 'agent-of-mkmeral/strands-coder', workflow: localStorage.getItem('gh_workflow') || 'agent.yml', projectId: localStorage.getItem('gh_project_id') || 'PVT_kwHOAIyVLs4BMSWO' },
+                github: { token: localStorage.getItem('gh_token') || '', repo: localStorage.getItem('gh_repo') || 'agent-of-mkmeral/strands-coder', workflow: localStorage.getItem('gh_workflow') || 'agent.yml', projectId: localStorage.getItem('gh_project_id') || 'PVT_kwHOD9DpTM4BSejE' },
                 traces: { url: localStorage.getItem('traces_url') || '' }
             },
             loading: { issues: false, actions: false, project: false, traces: false },
@@ -654,13 +654,9 @@
                 return this.actions;
             },
             get filteredActivityEvents() {
-                const ext = (this.activityData.external_events || []).map(e => ({...e, _tag: 'external'}));
-                const int = (this.activityData.internal_events || []).map(e => ({...e, _tag: 'internal'}));
-                let items;
-                if (this.activityFilter === 'external') items = ext;
-                else if (this.activityFilter === 'internal') items = int;
-                else items = [...ext, ...int].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                return items;
+                if (this.activityFilter === 'external') return (this.activityData.external_events || []);
+                if (this.activityFilter === 'internal') return (this.activityData.internal_events || []);
+                return (this.activityData.display_events || []).slice(0, 20);
             },
             get wildRepoCount() {
                 const repos = new Set();
@@ -694,6 +690,7 @@
 
             // ===== INIT & NAVIGATION =====
             init() {
+                window.app = this;
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('token')) this.config.github.token = urlParams.get('token');
                 if (urlParams.get('repo')) this.config.github.repo = urlParams.get('repo');
@@ -822,7 +819,7 @@
                         ${comments}
                         <div class="mt-3 space-y-2">
                             <textarea id="commentInput_${issue.number}" class="w-full bg-bg-input border border-border rounded-lg p-3 text-sm text-txt resize-y min-h-[60px] focus:outline-none focus:border-accent" rows="2" placeholder="Add comment..."></textarea>
-                            <button onclick="document.querySelector('[x-data]').__x.$data.addComment(${issue.number}, '${repo}')" class="text-sm font-medium px-4 py-1.5 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors">Send</button>
+                            <button onclick="window.app.addComment(${issue.number}, '${repo}')" class="text-sm font-medium px-4 py-1.5 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors">Send</button>
                         </div>
                     </div>`;
             },
@@ -939,18 +936,21 @@
                     const res = await this.ghFetch(`https://api.github.com/users/${owner}/events?per_page=100`);
                     if (!res.ok) throw new Error(`API: ${res.status}`);
                     const events = await res.json();
-                    const threshold = new Date(Date.now() - 86400000);
+                    const threshold24h = new Date(Date.now() - 86400000);
+                    const threshold3d = new Date(Date.now() - 3 * 86400000);
                     const throttledTypes = new Set(['IssueCommentEvent', 'PullRequestReviewEvent', 'PullRequestReviewCommentEvent', 'IssuesEvent', 'PullRequestEvent', 'CommitCommentEvent', 'CreateEvent', 'DeleteEvent', 'PushEvent']);
-                    const external = [], internal = [];
+                    const external = [], internal = [], allDisplay = [];
                     const internalOwners = [owner.toLowerCase(), 'mkmeral'];
                     for (const event of events) {
-                        if (new Date(event.created_at) < threshold || !throttledTypes.has(event.type)) continue;
+                        if (!throttledTypes.has(event.type)) continue;
+                        if (new Date(event.created_at) < threshold3d) continue;
                         const repoOwner = (event.repo?.name || '').split('/')[0].toLowerCase();
                         const isExt = !internalOwners.includes(repoOwner);
                         const summary = { type: event.type, repo: event.repo?.name || '', created_at: event.created_at, action: event.payload?.action || '', url: this.getActivityUrl(event), title: this.getActivityTitle(event), isExternal: isExt };
-                        (isExt ? external : internal).push(summary);
+                        allDisplay.push(summary);
+                        if (new Date(event.created_at) >= threshold24h) { (isExt ? external : internal).push(summary); }
                     }
-                    this.activityData = { external_events: external, internal_events: internal };
+                    this.activityData = { external_events: external, internal_events: internal, display_events: allDisplay.slice(0, 20) };
                 } catch (e) { if (!silent) this.showToast('Activity error: ' + e.message); }
             },
             getActivityUrl(e) { return e.payload?.comment?.html_url || e.payload?.issue?.html_url || e.payload?.pull_request?.html_url || e.payload?.review?.html_url || null; },
@@ -1021,9 +1021,9 @@
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-base font-semibold">${wfIcon} ${this.escapeHtml(jobId)}</h4>
                         <div class="flex gap-2">
-                            <button onclick="document.querySelector('[x-data]').__x.$data.toggleJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover">${job.enabled !== false ? '⏸ Disable' : '▶ Enable'}</button>
-                            <button onclick="document.querySelector('[x-data]').__x.$data.editJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover">✏️ Edit</button>
-                            <button onclick="document.querySelector('[x-data]').__x.$data.deleteJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover text-danger">Delete</button>
+                            <button onclick="window.app.toggleJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover">${job.enabled !== false ? '⏸ Disable' : '▶ Enable'}</button>
+                            <button onclick="window.app.editJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover">✏️ Edit</button>
+                            <button onclick="window.app.deleteJob('${jobId}')" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover text-danger">Delete</button>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3 mb-4">
