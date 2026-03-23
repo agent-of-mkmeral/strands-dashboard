@@ -867,27 +867,33 @@
                     </div>`;
             },
             async addComment(num, repo, inputEl) {
+                if (this._submittingComment) return;
                 const el = inputEl || document.getElementById(`commentInput_${num}`);
                 const text = el?.value?.trim();
                 if (!text) { this.showToast('Enter comment'); return; }
+                this._submittingComment = true;
+                el.value = '';
                 try {
                     await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`, { method: 'POST', body: JSON.stringify({ body: text }) });
                     this.showToast('Sent!');
-                    el.value = '';
                     const res = await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`);
                     if (this.currentIssue?.number === num) { this.currentIssue.comments_data = await res.json(); this.renderIssueDetailHtml(); }
-                } catch (e) { this.showToast('Error'); }
+                } catch (e) { this.showToast('Error'); if (el) el.value = text; }
+                finally { this._submittingComment = false; }
             },
             async createIssue() {
+                if (this._submittingIssue) return;
                 const text = this.issueInput.trim();
                 if (!text) { this.showToast('Enter text'); return; }
+                this._submittingIssue = true;
+                this.issueInput = '';
                 try {
                     const issue = await (await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/issues`, { method: 'POST', body: JSON.stringify({ title: text.split('\n')[0].slice(0, 60), body: text }) })).json();
                     this.showToast(`Issue #${issue.number} created!`);
-                    this.issueInput = '';
                     this.pagesLoaded.issues = false;
                     this.loadIssues();
-                } catch (e) { this.showToast('Error'); }
+                } catch (e) { this.showToast('Error'); this.issueInput = text; }
+                finally { this._submittingIssue = false; }
             },
 
             // ===== ACTIONS =====
