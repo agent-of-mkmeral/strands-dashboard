@@ -631,6 +631,8 @@
             issueInput: '', importLinkText: '', shareEncrypted: true, sharePassword: '', shareLinkOutput: '',
             toastMsg: '', toastTimer: null,
             streamingInterval: null,
+            _creatingIssue: false,
+            _addingComment: false,
 
             // ===== NAVIGATION =====
             sidebarItems: [
@@ -867,27 +869,33 @@
                     </div>`;
             },
             async addComment(num, repo, inputEl) {
+                if (this._addingComment) return;
                 const el = inputEl || document.getElementById(`commentInput_${num}`);
                 const text = el?.value?.trim();
                 if (!text) { this.showToast('Enter comment'); return; }
+                this._addingComment = true;
+                if (el) el.value = '';
                 try {
                     await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`, { method: 'POST', body: JSON.stringify({ body: text }) });
                     this.showToast('Sent!');
-                    el.value = '';
                     const res = await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`);
                     if (this.currentIssue?.number === num) { this.currentIssue.comments_data = await res.json(); this.renderIssueDetailHtml(); }
-                } catch (e) { this.showToast('Error'); }
+                } catch (e) { if (el) el.value = text; this.showToast('Error'); }
+                finally { this._addingComment = false; }
             },
             async createIssue() {
+                if (this._creatingIssue) return;
                 const text = this.issueInput.trim();
                 if (!text) { this.showToast('Enter text'); return; }
+                this._creatingIssue = true;
+                this.issueInput = '';
                 try {
                     const issue = await (await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/issues`, { method: 'POST', body: JSON.stringify({ title: text.split('\n')[0].slice(0, 60), body: text }) })).json();
                     this.showToast(`Issue #${issue.number} created!`);
-                    this.issueInput = '';
                     this.pagesLoaded.issues = false;
                     this.loadIssues();
-                } catch (e) { this.showToast('Error'); }
+                } catch (e) { this.issueInput = text; this.showToast('Error'); }
+                finally { this._creatingIssue = false; }
             },
 
             // ===== ACTIONS =====
