@@ -257,9 +257,10 @@
                                 <div @click="selectAction(action.id)" class="px-4 py-2.5 border-b border-border-muted cursor-pointer hover:bg-bg-hover transition-colors"
                                     :class="currentAction?.id === action.id ? 'bg-accent-subtle border-l-2 border-l-accent' : ''">
                                     <div class="flex items-center gap-1.5 text-[13px] font-medium">
-                                        <span class="w-2 h-2 rounded-full shrink-0" :class="(action.status === 'in_progress' || action.status === 'queued') ? 'bg-warning live-pulse' : action.conclusion === 'success' ? 'bg-success' : 'bg-danger'"></span>
+                                        <span class="w-2 h-2 rounded-full shrink-0" :class="(action.status === 'in_progress' || action.status === 'queued') ? 'bg-warning live-pulse' : action._skipped ? 'bg-txt-muted opacity-40' : action.conclusion === 'success' ? 'bg-success' : action.conclusion === 'cancelled' ? 'bg-warning' : 'bg-danger'"></span>
                                         <span class="truncate" x-text="truncate(action.display_title || `#${action.run_number}`, 55)"></span>
                                         <span x-show="action.status === 'in_progress'" class="text-[10px] font-bold text-accent shrink-0 live-pulse">LIVE</span>
+                                        <span x-show="action._skipped" class="text-[10px] text-txt-muted shrink-0">⏭️</span>
                                     </div>
                                     <div class="text-[11px] text-txt-muted mt-0.5">
                                         <span class="bg-bg-hover rounded px-1 py-0.5 text-[10px]" x-text="getEventIcon(action.event) + ' ' + formatEventName(action.event)"></span>
@@ -655,8 +656,9 @@
             get openIssueCount() { return this.issues.filter(i => i.state === 'open').length; },
             get closedIssueCount() { return this.issues.filter(i => i.state === 'closed').length; },
             get runningCount() { return this.actions.filter(a => a.status === 'in_progress' || a.status === 'queued').length; },
-            get successCount() { return this.actions.filter(a => a.conclusion === 'success').length; },
+            get successCount() { return this.actions.filter(a => a.conclusion === 'success' && !a._skipped).length; },
             get failedCount() { return this.actions.filter(a => a.conclusion === 'failure').length; },
+            get skippedCount() { return this.actions.filter(a => a._skipped).length; },
             get throttlePercent() { return ((this.activityData.external_events?.length || 0) / 30) * 100; },
             get filteredIssues() {
                 let items = this.issues;
@@ -901,6 +903,14 @@
                         const items = (await res.json()).workflow_runs || [];
                         all = all.concat(items); more = items.length === 100; pg++;
                     }
+                    // Pre-detect likely-skipped runs based on duration
+                    // Skipped runs (self-trigger protection) complete in <30s, real agent runs take 1-15min
+                    for (const a of all) {
+                        if (a.status === 'completed' && a.run_started_at && a.updated_at) {
+                            const dur = new Date(a.updated_at) - new Date(a.run_started_at);
+                            if (dur < 30000 && a.conclusion === 'success') a._skipped = true;
+                        }
+                    }
                     this.actions = all;
                 } catch (e) { if (!silent) this.showToast('Error: ' + e.message); }
                 if (!silent) this.loading.actions = false;
@@ -929,16 +939,32 @@
                     const sessionMatch = fullLogs.match(/\*\*Session:\*\* `([^`]+)`/);
                     const kbMatch = fullLogs.match(/\*\*Knowledge Base:\*\* `([^`]+)`/);
                     const duration = job.completed_at && job.started_at ? this.formatDuration(new Date(job.completed_at) - new Date(job.started_at)) : '...';
+
+                    // Detect skipped runs (self-trigger protection, unauthorized, etc.)
+                    const isSkipped = /Skipping:.*triggered/.test(fullLogs) || /authorized=false/.test(fullLogs);
+                    const isCancelled = this.currentAction.conclusion === 'cancelled';
+                    const skipReason = fullLogs.match(/⏭️\s*Skipping:([^\n]*)/);
+                    if (isSkipped) this.currentAction._skipped = true;
+
                     let agentLogs = fullLogs;
                     const agentStart = fullLogs.match(/Agent created with \d+ tools/);
                     const agentEnd = fullLogs.match(/✅ Agent completed successfully[\s\S]*?Post job cleanup/);
                     if (agentStart && agentEnd) agentLogs = fullLogs.slice(fullLogs.indexOf(agentStart[0]), fullLogs.indexOf(agentEnd[0]) + agentEnd[0].length);
 
                     let html = `<div class="flex flex-wrap gap-2 mb-3 p-2.5 bg-bg-card border border-border rounded-lg text-[11px] text-txt-muted">
-                        <span>⏱ ${duration}</span>${toolsMatch ? `<span>· 🔧 ${toolsMatch[1]} tools</span>` : ''}${sessionMatch ? `<span>· 📎 ${this.truncate(sessionMatch[1],20)}</span>` : ''}${kbMatch ? '<span>· 🧠 KB</span>' : ''}
+                        <span>⏱ ${duration}</span>${toolsMatch ? `<span>· 🔧 ${toolsMatch[1]} tools</span>` : ''}${sessionMatch ? `<span>· 📎 ${this.truncate(sessionMatch[1],20)}</span>` : ''}${kbMatch ? '<span>· 🧠 KB</span>' : ''}${isSkipped ? '<span class="text-warning">· ⏭️ Skipped</span>' : ''}${isCancelled ? '<span class="text-warning">· 🚫 Cancelled</span>' : ''}
                         <a href="${this.currentAction.html_url}" target="_blank" class="text-accent hover:underline ml-auto">↗ GitHub</a></div>`;
-                    html += this.buildLogStep('📥', 'Request', this.escapeHtml(promptMatch ? promptMatch[1].trim() : (this.currentAction.status === 'in_progress' ? '(waiting for agent output...)' : '(not found in logs — see Full Logs below)')), true);
-                    html += this.buildLogStep('📤', 'Response', this.escapeHtml(resultMatch ? resultMatch[1].trim() : (this.currentAction.status === 'in_progress' ? '(waiting for agent output...)' : '(not found in logs — see Full Logs below)')), true);
+
+                    // Show appropriate messages based on run state
+                    const noOutputMsg = isSkipped
+                        ? `⏭️ Run skipped — ${skipReason ? skipReason[1].trim() : 'self-trigger protection prevented infinite loop'}\n\nThis is normal: when the agent posts a comment, GitHub fires a new workflow run which is automatically skipped to prevent infinite loops.`
+                        : isCancelled
+                        ? '🚫 Run was cancelled before the agent produced output.'
+                        : this.currentAction.status === 'in_progress'
+                        ? '(waiting for agent output...)'
+                        : '(not found in logs — see Full Logs below)';
+                    html += this.buildLogStep('📥', 'Request', this.escapeHtml(promptMatch ? promptMatch[1].trim() : noOutputMsg), true);
+                    html += this.buildLogStep('📤', 'Response', this.escapeHtml(resultMatch ? resultMatch[1].trim() : noOutputMsg), true);
                     const logLines = agentLogs.split('\n').filter(l => l.trim()).map(l => { const cls = /error|fail|❌/i.test(l) ? 'text-danger' : /success|✓|✅/i.test(l) ? 'text-success' : ''; return `<div class="text-[12px] font-mono py-0.5 ${cls}">${this.escapeHtml(l.trim())}</div>`; }).join('');
                     html += this.buildLogStepRaw('📜', 'Full Logs', logLines, false);
                     if (job.steps?.length) {
