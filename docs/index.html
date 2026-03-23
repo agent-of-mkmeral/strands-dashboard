@@ -19,6 +19,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = {
@@ -609,7 +610,7 @@
             activityData: { external_events: [], internal_events: [] }, activityFilter: 'all',
             wildPRs: [], wildIssues: [], wildFilter: 'all', wildHtml: '',
             tracesSessions: [], traceDetailHtml: '', tracesCredsStatus: '🔴 No creds', tracesStatus: '',
-            tracesCreds: null, tracesCredsRefreshTimer: null,
+            tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '',
             warnings: [], warningCount: 0,
             issueDetailHtml: '', logsHtml: '', jobDetailHtml: '',
             promptPreviewHtml: '', fullscreenPromptHtml: '', issueModalHtml: '', issueModalTitle: '',
@@ -708,6 +709,7 @@
                 else this.navigate('home');
 
                 if (urlParams.get('issue')) setTimeout(() => this.openIssueDetail(parseInt(urlParams.get('issue'))), 500);
+                this.initCryptoKeys();
                 setInterval(() => this.updateCredsStatus(), 30000);
                 document.addEventListener('keydown', e => { if (e.key === 'Escape') { this.showIssueModal = false; this.showAddJob = false; this.showCreateIssue = false; this.showFullscreenPrompt = false; } });
             },
@@ -1159,19 +1161,68 @@
 
             // ===== TRACES (CloudWatch Direct) =====
             async loadTraces(silent = false) { this.updateCredsStatus(); },
+            async initCryptoKeys() {
+                if (this.cryptoKeyPair && this.publicKeyB64) return;
+                try {
+                    const stored = sessionStorage.getItem('trace_crypto_keys');
+                    if (stored) {
+                        const { pub, priv } = JSON.parse(stored);
+                        const pubBuf = Uint8Array.from(atob(pub), c => c.charCodeAt(0));
+                        const privBuf = Uint8Array.from(atob(priv), c => c.charCodeAt(0));
+                        this.cryptoKeyPair = {
+                            publicKey: await crypto.subtle.importKey('spki', pubBuf, { name: 'RSA-OAEP', hash: 'SHA-256' }, true, ['encrypt']),
+                            privateKey: await crypto.subtle.importKey('pkcs8', privBuf, { name: 'RSA-OAEP', hash: 'SHA-256' }, true, ['decrypt'])
+                        };
+                        this.publicKeyB64 = pub;
+                        return;
+                    }
+                    this.cryptoKeyPair = await crypto.subtle.generateKey(
+                        { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+                        true, ['encrypt', 'decrypt']
+                    );
+                    const pubDer = await crypto.subtle.exportKey('spki', this.cryptoKeyPair.publicKey);
+                    const privDer = await crypto.subtle.exportKey('pkcs8', this.cryptoKeyPair.privateKey);
+                    this.publicKeyB64 = btoa(String.fromCharCode(...new Uint8Array(pubDer)));
+                    sessionStorage.setItem('trace_crypto_keys', JSON.stringify({
+                        pub: this.publicKeyB64,
+                        priv: btoa(String.fromCharCode(...new Uint8Array(privDer)))
+                    }));
+                } catch (e) { console.error('Crypto key init:', e); }
+            },
+            async decryptCreds(enc) {
+                if (!this.cryptoKeyPair) throw new Error('No crypto keys — refresh the page');
+                // Decrypt AES key with RSA-OAEP private key
+                const aesKeyBuf = await crypto.subtle.decrypt(
+                    { name: 'RSA-OAEP' },
+                    this.cryptoKeyPair.privateKey,
+                    Uint8Array.from(atob(enc.ek), c => c.charCodeAt(0))
+                );
+                // Import AES-256-GCM key
+                const aesKey = await crypto.subtle.importKey('raw', aesKeyBuf, 'AES-GCM', false, ['decrypt']);
+                // Decrypt data (Web Crypto expects auth tag appended to ciphertext)
+                const ivBuf = Uint8Array.from(atob(enc.iv), c => c.charCodeAt(0));
+                const encData = Uint8Array.from(atob(enc.d), c => c.charCodeAt(0));
+                const tagBuf = Uint8Array.from(atob(enc.tag), c => c.charCodeAt(0));
+                const combined = new Uint8Array(encData.length + tagBuf.length);
+                combined.set(encData);
+                combined.set(tagBuf, encData.length);
+                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBuf }, aesKey, combined);
+                return JSON.parse(new TextDecoder().decode(decrypted));
+            },
             updateCredsStatus() {
                 if (!this.tracesCreds) { this.tracesCredsStatus = '🔴 No creds'; return; }
                 const remaining = Math.max(0, Math.round((new Date(this.tracesCreds.expiration) - Date.now()) / 1000));
                 if (remaining <= 0) { this.tracesCredsStatus = '🔴 Expired'; this.tracesCreds = null; }
                 else if (remaining < 120) this.tracesCredsStatus = `🟡 ${Math.round(remaining / 60)}m left`;
-                else this.tracesCredsStatus = `🟢 ${Math.round(remaining / 60)}m left`;
+                else this.tracesCredsStatus = `🟢🔒 ${Math.round(remaining / 60)}m left`;
             },
             async ensureCreds() { if (this.tracesCreds) { const r = (new Date(this.tracesCreds.expiration) - Date.now()) / 1000; if (r > 120) return this.tracesCreds; } return await this.refreshTraceCreds(false); },
             async refreshTraceCreds(manual = false) {
                 try {
                     if (!manual) { const existing = await this.fetchExistingCredsArtifact(); if (existing) { this.tracesCreds = existing; this.updateCredsStatus(); return this.tracesCreds; } }
-                    this.tracesStatus = 'Triggering credential vending...';
-                    await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: {} }) });
+                    if (!this.publicKeyB64) await this.initCryptoKeys();
+                    this.tracesStatus = 'Encrypting & vending credentials...';
+                    await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { public_key: this.publicKeyB64 } }) });
                     this.tracesStatus = 'Waiting for creds (~15s)...';
                     await new Promise(r => setTimeout(r, 3000));
                     const runData = await this.pollForCredsRun();
@@ -1216,30 +1267,19 @@
                     const dlRes = await this.ghFetch(artifact.archive_download_url);
                     if (!dlRes.ok) return null;
                     const zip = await (await dlRes.blob()).arrayBuffer();
-                    return JSON.parse(await this.unzipFirstFile(zip));
-                } catch { return null; }
+                    const jsonStr = await this.unzipFirstFile(zip);
+                    const parsed = JSON.parse(jsonStr);
+                    // Encrypted creds have 'ek' (encrypted key) field
+                    if (parsed.ek) return await this.decryptCreds(parsed);
+                    // Legacy plaintext creds
+                    return parsed;
+                } catch (e) { console.error('Creds artifact error:', e); return null; }
             },
             async unzipFirstFile(buffer) {
-                const view = new DataView(buffer);
-                let offset = 0;
-                while (offset < buffer.byteLength - 4) { if (view.getUint32(offset, true) === 0x04034b50) break; offset++; }
-                if (offset >= buffer.byteLength - 30) throw new Error('No ZIP');
-                const compression = view.getUint16(offset + 8, true);
-                const compSize = view.getUint32(offset + 18, true);
-                const nameLen = view.getUint16(offset + 26, true);
-                const extraLen = view.getUint16(offset + 28, true);
-                const dataOffset = offset + 30 + nameLen + extraLen;
-                const data = new Uint8Array(buffer, dataOffset, compSize || (buffer.byteLength - dataOffset));
-                if (compression === 0) return new TextDecoder().decode(data);
-                if (compression === 8) {
-                    const ds = new DecompressionStream('deflate-raw');
-                    const w = ds.writable.getWriter(); w.write(data); w.close();
-                    const reader = ds.readable.getReader();
-                    let result = ''; const dec = new TextDecoder();
-                    while (true) { const { done, value } = await reader.read(); if (done) break; result += dec.decode(value, { stream: true }); }
-                    return result;
-                }
-                throw new Error(`Unsupported compression: ${compression}`);
+                const unzipped = fflate.unzipSync(new Uint8Array(buffer));
+                const files = Object.keys(unzipped);
+                if (files.length === 0) throw new Error('Empty ZIP');
+                return new TextDecoder().decode(unzipped[files[0]]);
             },
             async cwQuery(queryString, logGroup, hoursBack = 168) {
                 const creds = await this.ensureCreds(); if (!creds) throw new Error('No credentials');
