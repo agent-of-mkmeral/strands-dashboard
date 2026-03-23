@@ -304,17 +304,27 @@
                             <div class="h-full rounded-full transition-all" :class="throttlePercent >= 100 ? 'bg-danger' : throttlePercent >= 80 ? 'bg-warning' : 'bg-accent'" :style="`width: ${Math.min(100, throttlePercent)}%`"></div>
                         </div>
                     </div>
-                    <div class="flex gap-1 mb-3">
+                    <div class="flex items-center gap-1 mb-3 flex-wrap">
                         <template x-for="f in ['all','external','internal']" :key="f">
                             <button @click="activityFilter = f" class="text-xs px-3 py-1.5 rounded-md font-medium" :class="activityFilter === f ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">
                                 <span x-text="f === 'external' ? '🌐 External' : f === 'internal' ? '🏠 Internal' : 'All'"></span>
                             </button>
                         </template>
+                        <div class="ml-auto flex items-center gap-2 text-[10px] text-txt-muted">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background: rgba(99,102,241,0.4)"></span>Own</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background: rgba(34,197,94,0.4)"></span>Strands</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background: rgba(234,179,8,0.5)"></span>Other</span>
+                        </div>
                     </div>
                     <div class="bg-bg-card border border-border rounded-lg overflow-hidden">
                         <template x-for="evt in filteredActivityEvents" :key="evt.created_at + evt.type">
-                            <div @click="evt.url && window.open(evt.url, '_blank')" class="px-3 py-2.5 border-b border-border-muted last:border-0 hover:bg-bg-hover transition-colors" :class="evt.url ? 'cursor-pointer' : ''">
-                                <div class="text-[13px] font-medium" x-text="getActivityIcon(evt.type) + ' ' + (evt.title || evt.type)"></div>
+                            <div @click="evt.url && window.open(evt.url, '_blank')" class="px-3 py-2.5 border-b border-border-muted last:border-0 hover:bg-bg-hover transition-colors" :class="evt.url ? 'cursor-pointer' : ''" :style="getActivityBgStyle(evt.repo)">
+                                <div class="flex items-center gap-2">
+                                    <div class="text-[13px] font-medium flex-1" x-text="getActivityIcon(evt.type) + ' ' + (evt.title || evt.type)"></div>
+                                    <span class="text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                                        :class="getActivityCategory(evt.repo) === 'own' ? 'text-accent-light bg-accent-muted' : getActivityCategory(evt.repo) === 'strands' ? 'text-success bg-success-muted' : 'text-warning bg-warning-muted'"
+                                        x-text="getActivityCategory(evt.repo) === 'own' ? 'Own' : getActivityCategory(evt.repo) === 'strands' ? 'Strands' : 'Other'"></span>
+                                </div>
                                 <div class="text-[11px] text-txt-muted mt-0.5"><span x-text="evt.repo"></span> · <span x-text="formatDate(evt.created_at)"></span></div>
                             </div>
                         </template>
@@ -681,6 +691,18 @@
             getEventIcon(event) { return { issues: '📋', issue_comment: '💬', pull_request: '🔀', pull_request_review: '✅', workflow_dispatch: '▶️', schedule: '⏰', repository_dispatch: '📡', push: '📦' }[event] || '⚡'; },
             formatEventName(event) { return { issues: 'Issue', issue_comment: 'Comment', pull_request: 'PR', pull_request_review: 'Review', workflow_dispatch: 'Manual', schedule: 'Scheduled', repository_dispatch: 'Dispatch', push: 'Push' }[event] || event; },
             getActivityIcon(type) { return { IssueCommentEvent: '💬', PullRequestReviewEvent: '✅', PullRequestReviewCommentEvent: '💭', IssuesEvent: '🎫', PullRequestEvent: '🔀', CommitCommentEvent: '📝', CreateEvent: '➕', DeleteEvent: '🗑️', PushEvent: '⬆️' }[type] || '📌'; },
+            getActivityBgStyle(repo) {
+                const owner = (repo || '').split('/')[0].toLowerCase();
+                if (['agent-of-mkmeral', 'mkmeral'].includes(owner)) return 'background-color: rgba(99,102,241,0.06); border-left: 2px solid rgba(99,102,241,0.3)';
+                if (['strands-agents', 'strands-labs'].includes(owner)) return 'background-color: rgba(34,197,94,0.06); border-left: 2px solid rgba(34,197,94,0.3)';
+                return 'background-color: rgba(234,179,8,0.08); border-left: 2px solid rgba(234,179,8,0.4)';
+            },
+            getActivityCategory(repo) {
+                const owner = (repo || '').split('/')[0].toLowerCase();
+                if (['agent-of-mkmeral', 'mkmeral'].includes(owner)) return 'own';
+                if (['strands-agents', 'strands-labs'].includes(owner)) return 'strands';
+                return 'other';
+            },
             extractIssueNum(action) { const m = action.display_title?.match(/#(\d+)/) || action.head_commit?.message?.match(/#(\d+)/); return m ? parseInt(m[1]) : null; },
 
             showToast(msg) { this.toastMsg = msg; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => this.toastMsg = '', 2000); },
