@@ -282,12 +282,13 @@
             </div>
 
             <!-- ===== WATCH (Activity + Wild + Traces) ===== -->
-            <div x-show="page === 'activity' || page === 'wild' || page === 'traces'" x-cloak class="flex-1 flex flex-col overflow-hidden animate-in">
+            <div x-show="page === 'activity' || page === 'wild' || page === 'traces' || page === 'mentions'" x-cloak class="flex-1 flex flex-col overflow-hidden animate-in">
                 <!-- Sub-tabs (mobile only, desktop uses sidebar) -->
                 <div class="flex lg:hidden items-center gap-1 p-3 border-b border-border">
                     <button @click="navigate('activity')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'activity' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📊 Activity</button>
                     <button @click="navigate('wild')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'wild' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">🌍 Wild</button>
                     <button @click="navigate('traces')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'traces' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📈 Traces</button>
+                    <button @click="navigate('mentions')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'mentions' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📣 Mentions</button>
                     <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
 
@@ -384,6 +385,92 @@
                             <div x-show="currentTraceSession" x-html="traceDetailHtml"></div>
                         </div>
                     </div>
+
+                <!-- Mentions sub-view -->
+                <div x-show="page === 'mentions'" class="flex-1 overflow-y-auto p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-sm font-semibold">📣 Mentions</h3>
+                            <p class="text-[11px] text-txt-muted mt-0.5">@agent-of-mkmeral mention polling · Every 15 min</p>
+                        </div>
+                        <button @click="triggerMentionsCheck()" class="text-xs font-medium px-4 py-2 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors flex items-center gap-1.5" :disabled="mentionsTriggering">
+                            <span x-show="!mentionsTriggering">🔍 Check Now</span>
+                            <span x-show="mentionsTriggering" class="flex items-center gap-1"><span class="spinner" style="width:14px;height:14px;border-width:1.5px"></span> Triggering...</span>
+                        </button>
+                    </div>
+
+                    <!-- Status card -->
+                    <div class="bg-bg-card border border-border rounded-lg p-4 mb-4">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <div class="text-[11px] text-txt-muted">Last Check</div>
+                                <div class="text-sm font-medium" x-text="mentionsLastCheck || '-'"></div>
+                            </div>
+                            <div>
+                                <div class="text-[11px] text-txt-muted">Last Result</div>
+                                <div class="text-sm font-medium" x-text="mentionsLastStatus || '-'"></div>
+                            </div>
+                            <div>
+                                <div class="text-[11px] text-txt-muted">Interval</div>
+                                <div class="text-sm font-medium">Every 15m</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- How it works -->
+                    <details class="bg-bg-card border border-border rounded-lg overflow-hidden mb-4">
+                        <summary class="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-bg-hover text-sm font-medium">
+                            <span>ℹ️ How Mentions Work</span>
+                        </summary>
+                        <div class="px-3 py-3 border-t border-border text-[12px] text-txt-secondary space-y-2">
+                            <p>The <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">mentions.yml</code> workflow polls GitHub notifications every 15 minutes for <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">@agent-of-mkmeral</code> mentions.</p>
+                            <p><strong>Flow:</strong> Mention detected → Author authorization check → <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">agent.yml</code> dispatched → Agent responds</p>
+                            <p><strong>Checked locations:</strong> Issue/PR bodies, comments, PR reviews, PR line comments</p>
+                            <p><strong>Security:</strong> Only mentions from authorized users trigger the agent. Unauthorized mentions are silently ignored.</p>
+                        </div>
+                    </details>
+
+                    <!-- Recent runs -->
+                    <h4 class="text-sm font-semibold text-txt-secondary mb-2">Recent Checks</h4>
+                    <div x-show="mentionsLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                    <div x-show="!mentionsLoading" class="bg-bg-card border border-border rounded-lg overflow-hidden">
+                        <template x-for="run in mentionsRuns" :key="run.id">
+                            <div @click="openMentionsRun(run)" class="px-3 py-2.5 border-b border-border-muted last:border-0 cursor-pointer hover:bg-bg-hover transition-colors">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full shrink-0" :class="(run.status === 'in_progress' || run.status === 'queued') ? 'bg-warning live-pulse' : run.conclusion === 'success' ? 'bg-success' : run.conclusion === 'failure' ? 'bg-danger' : 'bg-txt-muted'"></span>
+                                    <span class="text-[13px] font-medium flex-1">#<span x-text="run.run_number"></span></span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-txt-muted" x-text="run.event === 'workflow_dispatch' ? '▶️ Manual' : '⏰ Scheduled'"></span>
+                                    <span x-show="run.status === 'in_progress'" class="text-[10px] font-bold text-accent live-pulse">LIVE</span>
+                                </div>
+                                <div class="text-[11px] text-txt-muted mt-0.5 flex items-center gap-2">
+                                    <span x-text="formatDate(run.created_at)"></span>
+                                    <template x-if="run.conclusion">
+                                        <span>· <span x-text="run.conclusion === 'success' ? '✅' : run.conclusion === 'failure' ? '❌' : run.conclusion"></span></span>
+                                    </template>
+                                    <template x-if="run._mentionCount !== undefined">
+                                        <span>· <span x-text="run._mentionCount + ' mention(s)'" class="text-accent-light"></span></span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="mentionsRuns.length === 0 && !mentionsLoading" class="text-center py-8 text-txt-muted text-sm">
+                            <div class="text-2xl mb-2">📣</div>
+                            <p>No mention checks found</p>
+                        </div>
+                    </div>
+
+                    <!-- Run detail modal -->
+                    <div x-show="mentionsRunDetail" x-cloak class="mt-4">
+                        <div class="bg-bg-card border border-border rounded-lg overflow-hidden">
+                            <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
+                                <span class="text-sm font-semibold">Run #<span x-text="mentionsRunDetail?.run_number"></span> Details</span>
+                                <button @click="mentionsRunDetail = null" class="text-txt-muted hover:text-txt text-xs">✕</button>
+                            </div>
+                            <div class="px-3 py-3 max-h-[50vh] overflow-y-auto" x-html="mentionsRunLogsHtml"></div>
+                        </div>
+                    </div>
+                </div>
+
                 </div>
             </div>
 
@@ -622,6 +709,7 @@
             wildPRs: [], wildIssues: [], wildFilter: 'all', wildHtml: '',
             tracesSessions: [], traceDetailHtml: '', tracesCredsStatus: '🔴 No creds', tracesStatus: '',
             tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '',
+            mentionsRuns: [], mentionsLoading: false, mentionsTriggering: false, mentionsLastCheck: '', mentionsLastStatus: '', mentionsRunDetail: null, mentionsRunLogsHtml: '',
             warnings: [], warningCount: 0,
             issueDetailHtml: '', logsHtml: '', jobDetailHtml: '',
             promptPreviewHtml: '', fullscreenPromptHtml: '', issueModalHtml: '', issueModalTitle: '',
@@ -640,6 +728,7 @@
                 { id: 'home', icon: '📊', label: 'Home' }, { id: 'issues', icon: '📋', label: 'Issues' },
                 { id: 'runs', icon: '⚡', label: 'Runs' }, { id: 'activity', icon: '📊', label: 'Activity' },
                 { id: 'wild', icon: '🌍', label: 'Wild' }, { id: 'traces', icon: '📈', label: 'Traces' },
+                { id: 'mentions', icon: '📣', label: 'Mentions' },
                 { id: 'agent', icon: '🤖', label: 'Agent' }, { id: 'schedule', icon: '📅', label: 'Schedule' },
                 { id: 'settings', icon: '⚙️', label: 'Settings' }
             ],
@@ -649,7 +738,7 @@
                 { id: 'agent', icon: '⚙', label: 'Config' }
             ],
             mobileNavActive(id) {
-                if (id === 'activity') return ['activity', 'wild', 'traces'].includes(this.page);
+                if (id === 'activity') return ['activity', 'wild', 'traces', 'mentions'].includes(this.page);
                 if (id === 'agent') return ['agent', 'schedule', 'settings'].includes(this.page);
                 return this.page === id;
             },
@@ -765,6 +854,7 @@
                     else if (page === 'activity') this.loadActivity();
                     else if (page === 'wild') this.loadWild();
                     else if (page === 'traces') this.loadTraces();
+                    else if (page === 'mentions') this.loadMentions();
                     else if (page === 'agent') this.loadAgentConfig();
                     else if (page === 'schedule') this.loadSchedule();
                 }
@@ -1454,6 +1544,110 @@
                 }
                 html += '</div>';
                 this.traceDetailHtml = html;
+            },
+
+
+            // ===== MENTIONS =====
+            async loadMentions(silent = false) {
+                if (!silent) this.mentionsLoading = true;
+                try {
+                    const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/mentions.yml/runs?per_page=20`);
+                    if (!res.ok) throw new Error(`API: ${res.status}`);
+                    const data = await res.json();
+                    this.mentionsRuns = data.workflow_runs || [];
+                    // Parse mention counts from step summaries
+                    for (const run of this.mentionsRuns) {
+                        if (run.conclusion === 'success') {
+                            try {
+                                const jobsRes = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/runs/${run.id}/jobs`);
+                                const jobs = (await jobsRes.json()).jobs || [];
+                                const checkStep = jobs[0]?.steps?.find(s => s.name === 'Check for new mentions');
+                                if (checkStep) {
+                                    // We can't get step output directly, but we mark if process step ran
+                                    const processStep = jobs[0]?.steps?.find(s => s.name === 'Process mentions');
+                                    run._mentionCount = processStep?.conclusion === 'success' ? '1+' : 0;
+                                }
+                            } catch {}
+                        }
+                    }
+                    if (this.mentionsRuns.length > 0) {
+                        const latest = this.mentionsRuns[0];
+                        this.mentionsLastCheck = this.formatDate(latest.created_at);
+                        this.mentionsLastStatus = (latest.status === 'in_progress' || latest.status === 'queued') ? '🔄 Running' : latest.conclusion === 'success' ? '✅ OK' : latest.conclusion === 'failure' ? '❌ Failed' : latest.conclusion === 'cancelled' ? '🚫 Cancelled' : '⏳ Pending';
+                    }
+                } catch (e) { if (!silent) this.showToast('Mentions error: ' + e.message); }
+                if (!silent) this.mentionsLoading = false;
+            },
+            async triggerMentionsCheck() {
+                if (this.mentionsTriggering) return;
+                this.mentionsTriggering = true;
+                try {
+                    const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/mentions.yml/dispatches`, {
+                        method: 'POST',
+                        body: JSON.stringify({ ref: 'main', inputs: { debug: 'true' } })
+                    });
+                    if (!res.ok && res.status !== 204) throw new Error(`API: ${res.status}`);
+                    this.showToast('📣 Mentions check triggered!');
+                    setTimeout(() => { this.pagesLoaded.mentions = false; this.loadMentions(); }, 5000);
+                } catch (e) { this.showToast('Error: ' + e.message); }
+                this.mentionsTriggering = false;
+            },
+            async openMentionsRun(run) {
+                this.mentionsRunDetail = run;
+                this.mentionsRunLogsHtml = '<div class="flex justify-center py-4"><div class="spinner"></div></div>';
+                try {
+                    const jobsRes = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/runs/${run.id}/jobs`);
+                    const jobs = (await jobsRes.json()).jobs || [];
+                    if (!jobs.length) { this.mentionsRunLogsHtml = '<p class="text-txt-muted text-sm">No jobs found</p>'; return; }
+                    const job = jobs[0];
+                    const logsRes = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/jobs/${job.id}/logs`);
+                    if (!logsRes.ok) {
+                        // Show steps if logs unavailable
+                        const stepsHtml = (job.steps || []).map(s => {
+                            const icon = s.conclusion === 'success' ? '✅' : s.conclusion === 'failure' ? '❌' : s.conclusion === 'skipped' ? '⏭️' : '⏳';
+                            return `<div class="text-[12px] font-mono py-0.5 ${s.conclusion === 'failure' ? 'text-danger' : 'text-txt-secondary'}">${icon} ${this.escapeHtml(s.name)}</div>`;
+                        }).join('');
+                        this.mentionsRunLogsHtml = stepsHtml || '<p class="text-txt-muted text-sm">Logs not available</p>';
+                        return;
+                    }
+                    const logs = this.cleanLogs(await logsRes.text());
+                    // Parse key info from logs
+                    const mentionCountMatch = logs.match(/Found (\d+) potential mentions/);
+                    const mentionLines = logs.match(/📌 Processing:.*$/gm) || [];
+                    const authLines = logs.match(/(✅|🚫).*(?:AUTHORIZED|authorized|NOT authorized|dispatched).*$/gm) || [];
+                    const noMentions = logs.includes('No new mentions to process');
+                    
+                    let html = '';
+                    // Summary
+                    if (noMentions) {
+                        html += '<div class="bg-bg border border-border rounded-lg p-3 mb-3 text-center"><span class="text-2xl">✅</span><div class="text-sm font-medium mt-1">No new mentions</div></div>';
+                    } else if (mentionCountMatch) {
+                        html += `<div class="bg-accent-subtle border border-accent/15 rounded-lg p-3 mb-3"><div class="text-sm font-semibold text-accent-light">📬 ${mentionCountMatch[1]} mention(s) found</div></div>`;
+                    }
+                    // Processed mentions
+                    if (mentionLines.length > 0) {
+                        html += '<div class="space-y-1.5 mb-3">';
+                        for (const line of mentionLines) {
+                            html += `<div class="text-[12px] font-mono py-1 px-2 bg-bg rounded border border-border-muted">${this.escapeHtml(line.replace('📌 Processing: ', ''))}</div>`;
+                        }
+                        html += '</div>';
+                    }
+                    // Auth results
+                    if (authLines.length > 0) {
+                        html += '<div class="space-y-1 mb-3">';
+                        for (const line of authLines) {
+                            const isAuth = line.includes('✅');
+                            html += `<div class="text-[12px] font-mono py-1 px-2 rounded ${isAuth ? 'bg-success-muted text-success' : 'bg-bg-hover text-txt-muted'}">${this.escapeHtml(line.trim())}</div>`;
+                        }
+                        html += '</div>';
+                    }
+                    // Full logs (collapsed)
+                    const logLines = logs.split('\n').filter(l => l.trim()).map(l => `<div class="text-[11px] font-mono py-0.5 text-txt-secondary">${this.escapeHtml(l.trim())}</div>`).join('');
+                    html += `<details class="border border-border rounded-lg overflow-hidden"><summary class="flex items-center gap-2 px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer text-[12px] font-medium">📜 Full Logs</summary><div class="px-3 py-2 bg-bg max-h-[40vh] overflow-y-auto">${logLines}</div></details>`;
+                    // Link to GitHub
+                    html += `<div class="mt-3 text-right"><a href="${run.html_url}" target="_blank" class="text-[11px] text-accent hover:underline">View on GitHub ↗</a></div>`;
+                    this.mentionsRunLogsHtml = html;
+                } catch (e) { this.mentionsRunLogsHtml = `<p class="text-danger text-sm">${e.message}</p>`; }
             },
 
             // ===== WARNINGS =====
