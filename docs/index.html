@@ -393,7 +393,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <h3 class="text-sm font-semibold">📣 Mentions</h3>
-                            <p class="text-[11px] text-txt-muted mt-0.5">@agent-of-mkmeral mention polling · Every 15 min</p>
+                            <p class="text-[11px] text-txt-muted mt-0.5">@agent-of-mkmeral mention polling · Hourly (8am–10pm UTC)</p>
                         </div>
                         <button @click="triggerMentionsCheck()" class="text-xs font-medium px-4 py-2 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors flex items-center gap-1.5" :disabled="mentionsTriggering">
                             <span x-show="!mentionsTriggering">🔍 Check Now</span>
@@ -425,7 +425,7 @@
                             <span>ℹ️ How Mentions Work</span>
                         </summary>
                         <div class="px-3 py-3 border-t border-border text-[12px] text-txt-secondary space-y-2">
-                            <p>The <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">mentions.yml</code> workflow polls GitHub notifications every 15 minutes for <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">@agent-of-mkmeral</code> mentions.</p>
+                            <p>The <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">mentions.yml</code> workflow polls GitHub notifications hourly (8am–10pm UTC) for <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">@agent-of-mkmeral</code> mentions.</p>
                             <p><strong>Flow:</strong> Mention detected → Author authorization check → <code class="bg-bg-hover px-1 py-0.5 rounded text-[10px]">agent.yml</code> dispatched → Agent responds</p>
                             <p><strong>Checked locations:</strong> Issue/PR bodies, comments, PR reviews, PR line comments</p>
                             <p><strong>Security:</strong> Only mentions from authorized users trigger the agent. Unauthorized mentions are silently ignored.</p>
