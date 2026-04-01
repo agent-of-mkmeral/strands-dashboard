@@ -1577,14 +1577,21 @@
                 } catch (e) { this.traceDetailHtml = `<p class="text-danger text-center py-8">${e.message}</p>`; }
             },
             // Normalize OTEL attributes: handle both flat objects and arrays [{key, value: {stringValue/intValue/...}}]
+            // Normalize OTEL attributes: handle both flat objects and arrays [{key, value: {stringValue/intValue/...}}]
             normalizeAttrs(attrs) {
                 if (!attrs) return {};
                 if (Array.isArray(attrs)) {
                     const out = {};
                     for (const a of attrs) {
-                        if (a.key && a.value) {
+                        if (a.key && a.value !== undefined) {
                             const v = a.value;
-                            out[a.key] = v.stringValue || v.intValue || v.doubleValue || v.boolValue || (v.arrayValue ? JSON.stringify(v.arrayValue) : JSON.stringify(v));
+                            if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                                out[a.key] = v;
+                            } else if (v && typeof v === 'object') {
+                                out[a.key] = v.stringValue ?? v.intValue ?? v.doubleValue ?? v.boolValue ?? (v.arrayValue ? JSON.stringify(v.arrayValue) : JSON.stringify(v));
+                            } else {
+                                out[a.key] = '';
+                            }
                         } else if (a.key) { out[a.key] = ''; }
                     }
                     return out;
@@ -1593,9 +1600,10 @@
             },
             // Parse OTEL span data from CloudWatch log messages
             parseOtelSpan(data, ts) {
-                // OTLP batch export format (resourceSpans)
+                const results = [];
+
+                // OTLP batch export format (resourceSpans) — trace spans
                 if (data.resourceSpans) {
-                    const spans = [];
                     for (const rs of (data.resourceSpans || [])) {
                         const resAttrs = this.normalizeAttrs(rs.resource?.attributes);
                         for (const ss of (rs.scopeSpans || [])) {
@@ -1604,7 +1612,7 @@
                                 const attrs = this.normalizeAttrs(s.attributes);
                                 const name = s.name || '';
                                 let spanType = this.classifySpan(name, attrs);
-                                spans.push({
+                                results.push({
                                     type: spanType, name, span_id: s.spanId || '', parent_span_id: s.parentSpanId || '',
                                     trace_id: s.traceId || '', start_time: s.startTimeUnixNano || '', end_time: s.endTimeUnixNano || '',
                                     status: s.status || {}, attrs, resAttrs, scopeName, timestamp: ts,
@@ -1613,8 +1621,22 @@
                             }
                         }
                     }
-                    return spans.length ? spans : null;
                 }
+
+                // OTLP batch log format (resourceLogs) — LLO log records from AWS distro
+                if (data.resourceLogs) {
+                    for (const rl of (data.resourceLogs || [])) {
+                        for (const sl of (rl.scopeLogs || [])) {
+                            for (const lr of (sl.logRecords || [])) {
+                                const parsed = this.parseLLOLogRecord(lr, ts);
+                                if (parsed) results.push(parsed);
+                            }
+                        }
+                    }
+                }
+
+                if (results.length > 0) return results;
+
                 // Single span with traceId
                 if (data.name && data.traceId) {
                     const attrs = this.normalizeAttrs(data.attributes);
@@ -1627,30 +1649,147 @@
                         events: (data.events || []).map(e => ({ name: e.name, time: e.timeUnixNano || '', attrs: this.normalizeAttrs(e.attributes) }))
                     };
                 }
-                // Log record with body/attributes
+
+                // Single LLO log record (from AWS distro LLO handler)
+                if (data.body && typeof data.body === 'object' && (data.body.input || data.body.output)) {
+                    return this.parseLLOLogRecord(data, ts);
+                }
+
+                // Log record with body/attributes (generic)
                 if (data.body || data.attributes) {
                     const a = this.normalizeAttrs(data.attributes || {});
+                    // Check for LLO body with input/output messages
+                    let body = data.body;
+                    if (typeof body === 'string') {
+                        try { body = JSON.parse(body); } catch {}
+                    }
+                    if (body && typeof body === 'object' && (body.input || body.output)) {
+                        return this.parseLLOLogRecord({...data, body}, ts);
+                    }
+                    // Check for mapValue body format (OTLP proto JSON)
+                    if (body && body.mapValue) {
+                        try {
+                            const mapBody = this.parseOtlpMapValue(body.mapValue);
+                            if (mapBody && (mapBody.input || mapBody.output)) {
+                                return this.parseLLOLogRecord({...data, body: mapBody}, ts);
+                            }
+                        } catch {}
+                    }
                     const aStr = JSON.stringify(a);
                     let type = 'log';
                     if (aStr.includes('gen_ai.prompt') || aStr.includes('gen_ai.completion') || aStr.includes('gen_ai.choice')) type = 'inference';
                     else if (aStr.includes('tool.name') || aStr.includes('strands.tool') || aStr.includes('gen_ai.tool')) type = 'tool';
-                    return { type, attrs: a, body: typeof data.body === 'string' ? data.body : JSON.stringify(data.body || '').slice(0, 5000), timestamp: ts };
+                    return { type, attrs: a, body: typeof data.body === 'string' ? data.body : JSON.stringify(data.body || '').slice(0, 10000), timestamp: ts };
                 }
                 return null;
+            },
+            // Parse an LLO (Large Language Object) log record from the AWS OpenTelemetry Distro
+            // The LLO handler extracts content from spans and emits them as separate log records
+            // Body format: { input: { messages: [{role, content}] }, output: { messages: [{role, content}] } }
+            parseLLOLogRecord(lr, ts) {
+                const attrs = this.normalizeAttrs(lr.attributes || {});
+                let body = lr.body;
+                // Parse string body
+                if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return null; } }
+                // Handle OTLP mapValue format
+                if (body && body.mapValue) { try { body = this.parseOtlpMapValue(body.mapValue); } catch {} }
+                if (!body || typeof body !== 'object') return null;
+                // Extract input/output messages
+                const inputMsgs = [];
+                const outputMsgs = [];
+                if (body.input?.messages) {
+                    for (const m of (Array.isArray(body.input.messages) ? body.input.messages : [])) {
+                        const content = this.extractLLOContent(m.content || m);
+                        if (content) inputMsgs.push({ role: m.role || 'user', content });
+                    }
+                }
+                if (body.output?.messages) {
+                    for (const m of (Array.isArray(body.output.messages) ? body.output.messages : [])) {
+                        const content = this.extractLLOContent(m.content || m);
+                        if (content) outputMsgs.push({ role: m.role || 'assistant', content });
+                    }
+                }
+                if (inputMsgs.length === 0 && outputMsgs.length === 0) return null;
+                return {
+                    type: 'llo', attrs, timestamp: ts,
+                    trace_id: lr.traceId || '', span_id: lr.spanId || '',
+                    inputMsgs, outputMsgs, body
+                };
+            },
+            // Extract readable content from LLO message content (can be string, object, or nested)
+            extractLLOContent(content) {
+                if (!content) return '';
+                if (typeof content === 'string') {
+                    // Try to parse JSON content blocks
+                    try {
+                        const parsed = JSON.parse(content);
+                        if (Array.isArray(parsed)) return this.contentBlocksToText(parsed);
+                        if (typeof parsed === 'object') return this.contentBlockToText(parsed);
+                        return content;
+                    } catch { return content; }
+                }
+                if (Array.isArray(content)) return this.contentBlocksToText(content);
+                if (typeof content === 'object') {
+                    // Could be a content block dict like {text: "..."}, {toolUse: {...}}, etc.
+                    return this.contentBlockToText(content);
+                }
+                return String(content);
+            },
+            // Convert array of content blocks to readable text
+            contentBlocksToText(blocks) {
+                if (!Array.isArray(blocks)) return typeof blocks === 'string' ? blocks : JSON.stringify(blocks);
+                return blocks.map(b => this.contentBlockToText(b)).filter(Boolean).join('\n');
+            },
+            // Convert a single content block to readable text
+            contentBlockToText(block) {
+                if (!block) return '';
+                if (typeof block === 'string') return block;
+                // Strands SDK content blocks
+                if (block.text) return block.text;
+                if (block.toolUse) return `[tool_call: ${block.toolUse.name}(${JSON.stringify(block.toolUse.input || {}).slice(0, 500)})]`;
+                if (block.toolResult) {
+                    const resultContent = block.toolResult.content;
+                    const text = Array.isArray(resultContent) ? resultContent.map(r => r.text || JSON.stringify(r)).join('') : JSON.stringify(resultContent);
+                    return `[tool_result ${block.toolResult.status || ''}: ${text.slice(0, 1000)}]`;
+                }
+                // OTEL latest conventions parts format
+                if (block.type === 'text') return block.content || '';
+                if (block.type === 'tool_call') return `[tool_call: ${block.name}(${JSON.stringify(block.arguments || {}).slice(0, 500)})]`;
+                if (block.type === 'tool_call_response') return `[tool_response: ${JSON.stringify(block.response || '').slice(0, 1000)}]`;
+                // Generic object
+                const keys = Object.keys(block);
+                if (keys.length === 1) return String(block[keys[0]]).slice(0, 2000);
+                return JSON.stringify(block).slice(0, 2000);
+            },
+            // Parse OTLP mapValue format to plain object
+            parseOtlpMapValue(mapValue) {
+                if (!mapValue || !mapValue.kvlistValue) return null;
+                const result = {};
+                for (const kv of (mapValue.kvlistValue.values || [])) {
+                    const key = kv.key;
+                    const val = kv.value;
+                    if (!key) continue;
+                    if (val?.stringValue !== undefined) result[key] = val.stringValue;
+                    else if (val?.intValue !== undefined) result[key] = val.intValue;
+                    else if (val?.mapValue) result[key] = this.parseOtlpMapValue(val);
+                    else if (val?.arrayValue) {
+                        result[key] = (val.arrayValue.values || []).map(v => {
+                            if (v.mapValue) return this.parseOtlpMapValue(v);
+                            return v.stringValue ?? v.intValue ?? JSON.stringify(v);
+                        });
+                    }
+                    else result[key] = val;
+                }
+                return result;
             },
             // Classify span type based on actual Strands SDK span names
             classifySpan(name, attrs) {
                 const n = (name || '').toLowerCase();
                 const op = (attrs?.['gen_ai.operation.name'] || '').toLowerCase();
-                // Agent invocation: "invoke_agent {name}"
                 if (n.startsWith('invoke_agent') || op === 'invoke_agent') return 'agent';
-                // Model/LLM call: "chat"
                 if (n === 'chat' || op === 'chat' || attrs?.['gen_ai.request.model'] || n.includes('converse') || n.includes('invoke_model')) return 'model';
-                // Tool execution: "execute_tool {name}"
                 if (n.startsWith('execute_tool') || op === 'execute_tool' || attrs?.['gen_ai.tool.name']) return 'tool';
-                // Event loop cycle
                 if (n === 'execute_event_loop_cycle' || n.includes('event_loop')) return 'cycle';
-                // Multi-agent / swarm
                 if (n.startsWith('invoke_') && !n.startsWith('invoke_agent')) return 'multiagent';
                 return 'span';
             },
@@ -1667,13 +1806,15 @@
                 if (!str) return '';
                 try { const obj = typeof str === 'string' ? JSON.parse(str) : str; return JSON.stringify(obj, null, 2); } catch { return String(str); }
             },
-            // Extract readable content from OTEL gen_ai message events
+            // Extract readable content from OTEL gen_ai events on spans
+            // Handles both legacy conventions (content/message attrs) and latest (gen_ai.input.messages/gen_ai.output.messages)
             extractEventContent(events, filterNames) {
                 const parts = [];
                 for (const e of (events || [])) {
                     if (filterNames && !filterNames.includes(e.name)) continue;
                     const a = e.attrs || {};
-                    // Latest conventions: gen_ai.input.messages / gen_ai.output.messages
+
+                    // === Latest conventions (gen_ai.client.inference.operation.details) ===
                     for (const key of ['gen_ai.input.messages', 'gen_ai.output.messages', 'gen_ai.system_instructions']) {
                         if (a[key]) {
                             try {
@@ -1681,58 +1822,45 @@
                                 if (Array.isArray(parsed)) {
                                     for (const msg of parsed) {
                                         const role = msg.role || '';
-                                        const msgParts = (msg.parts || []).map(p => {
-                                            if (p.type === 'text') return p.content || '';
-                                            if (p.type === 'tool_call') return `[tool_call: ${p.name}(${JSON.stringify(p.arguments || {}).slice(0, 200)})]`;
-                                            if (p.type === 'tool_call_response') return `[tool_response: ${JSON.stringify(p.response || '').slice(0, 500)}]`;
-                                            return JSON.stringify(p).slice(0, 200);
-                                        }).join('');
-                                        if (role || msgParts) parts.push({ role, content: msgParts });
+                                        const content = (msg.parts || []).map(p => this.contentBlockToText(p)).join('');
+                                        if (role || content) parts.push({ role, content });
                                     }
+                                } else if (typeof parsed === 'string') {
+                                    parts.push({ role: key.includes('input') ? 'user' : 'assistant', content: parsed });
                                 }
-                            } catch { parts.push({ role: '', content: String(a[key]).slice(0, 1000) }); }
+                            } catch { parts.push({ role: '', content: String(a[key]).slice(0, 2000) }); }
                         }
                     }
-                    // Legacy conventions: content attribute
+
+                    // === Legacy conventions: content attribute (gen_ai.user.message, gen_ai.tool.message, gen_ai.system.message) ===
                     if (a.content) {
                         try {
                             const parsed = typeof a.content === 'string' ? JSON.parse(a.content) : a.content;
-                            if (Array.isArray(parsed)) {
-                                const text = parsed.map(b => {
-                                    if (typeof b === 'string') return b;
-                                    if (b.text) return b.text;
-                                    if (b.toolUse) return `[tool_call: ${b.toolUse.name}]`;
-                                    if (b.toolResult) return `[tool_result: ${JSON.stringify(b.toolResult.content || '').slice(0, 300)}]`;
-                                    return JSON.stringify(b).slice(0, 200);
-                                }).join('');
-                                parts.push({ role: e.name?.replace('gen_ai.', '').replace('.message', '') || '', content: text });
-                            } else {
-                                parts.push({ role: '', content: String(parsed).slice(0, 1000) });
-                            }
-                        } catch { parts.push({ role: '', content: String(a.content).slice(0, 1000) }); }
+                            const text = this.contentBlocksToText(Array.isArray(parsed) ? parsed : [parsed]);
+                            const role = a.role || e.name?.replace('gen_ai.', '').replace('.message', '') || '';
+                            parts.push({ role, content: text });
+                        } catch { parts.push({ role: '', content: String(a.content).slice(0, 2000) }); }
                     }
-                    // Simple message/finish_reason (gen_ai.choice events)
+
+                    // === Legacy conventions: message attribute (gen_ai.choice) ===
                     if (a.message && !a.content) {
                         try {
                             const parsed = typeof a.message === 'string' ? JSON.parse(a.message) : a.message;
-                            if (Array.isArray(parsed)) {
-                                const text = parsed.map(b => b.text || (b.toolUse ? `[tool_call: ${b.toolUse.name}]` : '')).filter(Boolean).join('');
-                                if (text) parts.push({ role: 'assistant', content: text });
-                            } else {
-                                parts.push({ role: 'assistant', content: String(parsed).slice(0, 1000) });
-                            }
-                        } catch { parts.push({ role: 'assistant', content: String(a.message).slice(0, 1000) }); }
+                            const text = this.contentBlocksToText(Array.isArray(parsed) ? parsed : [parsed]);
+                            if (text) parts.push({ role: 'assistant', content: text });
+                        } catch { parts.push({ role: 'assistant', content: String(a.message).slice(0, 2000) }); }
                     }
                 }
                 return parts;
             },
-            // Get tool name from span (check all possible attribute keys)
+            // Get tool name from span
             getToolName(span) {
                 const a = span.attrs || {};
                 return a['gen_ai.tool.name'] || a['tool.name'] || a['strands.tool.name'] || span.name?.replace('execute_tool ', '') || 'tool';
             },
-            // Get tool input/output from events
+            // Get tool input/output from events or LLO data
             getToolIO(span) {
+                // Try extracting from span events (works when events aren't stripped)
                 const input = this.extractEventContent(span.events, ['gen_ai.tool.message', 'gen_ai.client.inference.operation.details']);
                 const output = this.extractEventContent(span.events, ['gen_ai.choice', 'gen_ai.client.inference.operation.details']);
                 // Also check direct attributes as fallback
@@ -1740,8 +1868,8 @@
                 const directInput = a['tool.input'] || a['strands.tool.input'] || '';
                 const directOutput = a['tool.output'] || a['strands.tool.output'] || '';
                 return {
-                    input: input.length > 0 ? input : (directInput ? [{ role: 'input', content: directInput }] : []),
-                    output: output.length > 0 ? output : (directOutput ? [{ role: 'output', content: directOutput }] : []),
+                    input: input.length > 0 ? input : (directInput ? [{ role: 'input', content: typeof directInput === 'string' ? directInput : JSON.stringify(directInput) }] : []),
+                    output: output.length > 0 ? output : (directOutput ? [{ role: 'output', content: typeof directOutput === 'string' ? directOutput : JSON.stringify(directOutput) }] : []),
                     status: a['gen_ai.tool.status'] || a['tool.status'] || '',
                     error: a['tool.error'] || ''
                 };
@@ -1760,6 +1888,7 @@
                 const toolSpans = spans.filter(s => s.type === 'tool');
                 const cycleSpans = spans.filter(s => s.type === 'cycle');
                 const inferenceSpans = spans.filter(s => s.type === 'inference');
+                const lloSpans = spans.filter(s => s.type === 'llo');
 
                 // Calculate total duration
                 let totalDurMs = 0;
@@ -1931,6 +2060,14 @@
                     });
                 }
 
+                // LLO log records (content extracted by AWS distro LLO handler)
+                for (const s of lloSpans) {
+                    timeline.push({
+                        type: 'llo', inputMsgs: s.inputMsgs || [], outputMsgs: s.outputMsgs || [],
+                        span_id: s.span_id || '' , trace_id: s.trace_id || '' ,
+                        time: s.timestamp || '' , body: s.body
+                    });
+                }
                 timeline.sort((a, b) => {
                     const ta = parseInt(a.time) || new Date(a.time || 0).getTime() * 1e6;
                     const tb = parseInt(b.time) || new Date(b.time || 0).getTime() * 1e6;
@@ -2080,7 +2217,42 @@
                                 if (item.completion) html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Completion</div><div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(String(item.completion).slice(0, 2000))}</div></div>`;
                                 html += `</div></details>`;
                             }
-                        }
+                        } else if (item.type === 'llo') {
+                            // LLO log record — content extracted by AWS distro LLO handler
+                            const hasInput = item.inputMsgs && item.inputMsgs.length > 0;
+                            const hasOutput = item.outputMsgs && item.outputMsgs.length > 0;
+                            if (hasInput || hasOutput) {
+                                html += `<details open class="border border-purple-500/20 rounded-lg overflow-hidden">`;
+                                html += `<summary class="px-3 py-2.5 bg-purple-500/5 hover:bg-purple-500/10 cursor-pointer flex items-center gap-2 min-w-0">`;
+                                html += `<span class="text-[11px]">💬</span>`;
+                                html += `<span class="text-[12px] font-semibold text-purple-400">Conversation</span>`;
+                                html += `<span class="flex-1"></span>`;
+                                const msgCount = (item.inputMsgs?.length || 0) + (item.outputMsgs?.length || 0);
+                                html += `<span class="text-[10px] text-txt-muted bg-bg rounded px-1 py-0.5">${msgCount} msgs</span>`;
+                                html += `</summary>`;
+                                html += `<div class="p-3 space-y-2.5 bg-bg">`;
+                                // Show input messages
+                                if (hasInput) {
+                                    html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Input</div>`;
+                                    for (const msg of item.inputMsgs.slice(0, 10)) {
+                                        const roleLabel = msg.role ? `<span class="text-[10px] text-purple-400 font-medium">[${esc(msg.role)}]</span> ` : '';
+                                        const content = msg.content.slice(0, 5000);
+                                        html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted mb-1">${roleLabel}${esc(content)}</div>`;
+                                    }
+                                    if (item.inputMsgs.length > 10) html += `<div class="text-[10px] text-txt-muted">+${item.inputMsgs.length - 10} more</div>`;
+                                    html += `</div>`;
+                                }
+                                // Show output messages
+                                if (hasOutput) {
+                                    html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Output</div>`;
+                                    for (const msg of item.outputMsgs.slice(0, 5)) {
+                                        const content = msg.content.slice(0, 5000);
+                                        html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-60 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted mb-1">${esc(content)}</div>`;
+                                    }
+                                    html += `</div>`;
+                                }
+                                html += `</div></details>`;
+                            }
                     }
                     html += `</div>`;
                 }
