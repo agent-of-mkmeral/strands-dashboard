@@ -352,41 +352,43 @@
 
                 <!-- Traces sub-view -->
                 <div x-show="page === 'traces'" class="flex-1 flex flex-col overflow-hidden">
-                    <!-- Mobile: trace detail overlay -->
-                    <div x-show="currentTraceSession && isMobile()" class="absolute inset-0 z-30 bg-bg overflow-y-auto" style="padding-bottom: 72px;">
-                        <div class="sticky top-0 bg-bg border-b border-border px-4 py-3 flex items-center gap-3 z-10">
-                            <button @click="currentTraceSession = null" class="text-txt-muted hover:text-txt text-sm">← Back</button>
-                            <span class="text-sm font-semibold truncate" x-text="currentTraceSession || ''"></span>
+                    <!-- Mobile: trace detail overlay (full screen, scrollable, touch-friendly) -->
+                    <div x-show="currentTraceSession && isMobile()" class="absolute inset-0 z-30 bg-bg overflow-y-auto -webkit-overflow-scrolling-touch" style="padding-bottom: 80px;">
+                        <div class="sticky top-0 bg-bg/95 backdrop-blur-sm border-b border-border px-3 py-2.5 flex items-center gap-2 z-10">
+                            <button @click="currentTraceSession = null" class="text-txt-muted hover:text-txt text-sm px-2 py-1 -ml-2 rounded-md active:bg-bg-hover">← Back</button>
+                            <span class="text-[12px] font-semibold truncate text-txt" x-text="formatSessionName(currentTraceSession)"></span>
                         </div>
-                        <div class="p-4" x-html="traceDetailHtml"></div>
+                        <div class="px-3 py-3" x-html="traceDetailHtml"></div>
                     </div>
-                    <div class="flex items-center gap-2 p-3 border-b border-border flex-wrap">
-                        <span x-text="tracesCredsStatus" class="text-[11px] px-2 py-0.5 rounded bg-bg-card"></span>
-                        <span x-text="tracesStatus" class="text-[11px] text-txt-muted"></span>
-                        <button @click="fetchTracesList()" class="text-xs px-3 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover font-medium" :disabled="loading.traces">Load Sessions</button>
-                        <button @click="refreshTraceCreds(true)" class="text-xs px-2 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover">🔑</button>
-                        <a x-show="config.traces.url" :href="config.traces.url" target="_blank" class="text-xs px-2 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover no-underline text-txt-secondary">Bedrock ↗</a>
+                    <!-- Toolbar -->
+                    <div class="flex items-center gap-1.5 px-3 py-2 border-b border-border flex-wrap">
+                        <span x-text="tracesCredsStatus" class="text-[10px] px-1.5 py-0.5 rounded bg-bg-card shrink-0"></span>
+                        <span x-text="tracesStatus" class="text-[10px] text-txt-muted truncate min-w-0"></span>
+                        <span class="flex-1"></span>
+                        <button @click="fetchTracesList()" class="text-[11px] px-2.5 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover font-medium shrink-0 active:bg-bg-hover" :disabled="loading.traces">Load</button>
+                        <button @click="refreshTraceCreds(true)" class="text-[11px] px-2 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover shrink-0 active:bg-bg-hover">🔑</button>
+                        <a x-show="config.traces.url" :href="config.traces.url" target="_blank" class="text-[11px] px-2 py-1.5 rounded-md bg-bg-card border border-border hover:bg-bg-hover no-underline text-txt-secondary shrink-0">↗</a>
                     </div>
+                    <!-- Content: list + detail -->
                     <div class="flex-1 flex min-h-0">
-                        <div class="w-full lg:w-72 overflow-y-auto border-r border-border" :class="currentTraceSession && !isMobile() ? 'hidden lg:block' : ''">
+                        <!-- Session list (full width on mobile, sidebar on desktop) -->
+                        <div class="w-full lg:w-64 xl:w-72 overflow-y-auto border-r border-border" :class="currentTraceSession && !isMobile() ? 'hidden lg:block' : ''">
                             <template x-for="s in tracesSessions" :key="s.sid">
-                                <div @click="selectTraceSession(s.sid)" class="px-3 py-2.5 border-b border-border-muted cursor-pointer hover:bg-bg-hover"
+                                <div @click="selectTraceSession(s.sid)" class="px-3 py-2.5 border-b border-border-muted cursor-pointer hover:bg-bg-hover active:bg-bg-hover"
                                     :class="currentTraceSession === s.sid ? 'bg-accent-subtle border-l-2 border-l-accent' : ''">
                                     <div class="text-[13px] font-medium truncate" x-text="formatSessionName(s.sid)"></div>
-                                    <div class="text-[11px] text-txt-muted flex gap-2">
+                                    <div class="text-[10px] text-txt-muted flex items-center gap-1.5 mt-0.5">
                                         <span x-text="(s.span_count || '?') + ' spans'"></span>
                                         <span class="text-txt-placeholder">·</span>
                                         <span x-text="formatDate(s.last_seen)"></span>
                                     </div>
-                                    <div x-show="s.first_seen && s.last_seen" class="mt-1">
-                                        <div class="h-1 bg-bg rounded-full overflow-hidden"><div class="h-full bg-accent/40 rounded-full" :style="'width:' + Math.min(100, Math.max(5, parseInt(s.span_count || 0) / 2)) + '%'"></div></div>
-                                    </div>
                                 </div>
                             </template>
                             <div x-show="tracesSessions.length === 0" class="text-center py-8 text-txt-muted text-sm">
-                                <div class="text-2xl mb-2">📊</div>Click "Load Sessions"
+                                <div class="text-2xl mb-2">📊</div>Click "Load" to fetch sessions
                             </div>
                         </div>
+                        <!-- Desktop detail panel -->
                         <div x-show="!isMobile()" class="hidden lg:block flex-1 overflow-y-auto p-4">
                             <div x-show="!currentTraceSession" class="text-center py-16 text-txt-muted text-sm"><div class="text-2xl mb-2">🔍</div>Select a session</div>
                             <div x-show="currentTraceSession" x-html="traceDetailHtml"></div>
@@ -1589,6 +1591,7 @@
                 }
                 return attrs;
             },
+            // Parse OTEL span data from CloudWatch log messages
             parseOtelSpan(data, ts) {
                 // OTLP batch export format (resourceSpans)
                 if (data.resourceSpans) {
@@ -1600,11 +1603,7 @@
                             for (const s of (ss.spans || [])) {
                                 const attrs = this.normalizeAttrs(s.attributes);
                                 const name = s.name || '';
-                                let spanType = 'span';
-                                // Classify by span name and attributes
-                                if (name.includes('Agent') && name.includes('invoke')) spanType = 'agent';
-                                else if (name.includes('Model') || name.includes('invoke_model') || name.includes('converse') || attrs['gen_ai.system'] || attrs['gen_ai.request.model']) spanType = 'model';
-                                else if (name.includes('Tool') || name.includes('tool') || attrs['tool.name'] || attrs['strands.tool.name']) spanType = 'tool';
+                                let spanType = this.classifySpan(name, attrs);
                                 spans.push({
                                     type: spanType, name, span_id: s.spanId || '', parent_span_id: s.parentSpanId || '',
                                     trace_id: s.traceId || '', start_time: s.startTimeUnixNano || '', end_time: s.endTimeUnixNano || '',
@@ -1620,10 +1619,7 @@
                 if (data.name && data.traceId) {
                     const attrs = this.normalizeAttrs(data.attributes);
                     const name = data.name || '';
-                    let spanType = 'span';
-                    if (name.includes('Agent') || name.includes('invoke')) spanType = 'agent';
-                    else if (name.includes('Model') || name.includes('converse') || attrs['gen_ai.system']) spanType = 'model';
-                    else if (name.includes('Tool') || name.includes('tool') || attrs['tool.name']) spanType = 'tool';
+                    let spanType = this.classifySpan(name, attrs);
                     return {
                         type: spanType, name, span_id: data.spanId || '', parent_span_id: data.parentSpanId || '',
                         trace_id: data.traceId || '', start_time: data.startTimeUnixNano || '', end_time: data.endTimeUnixNano || '',
@@ -1637,12 +1633,28 @@
                     const aStr = JSON.stringify(a);
                     let type = 'log';
                     if (aStr.includes('gen_ai.prompt') || aStr.includes('gen_ai.completion') || aStr.includes('gen_ai.choice')) type = 'inference';
-                    else if (aStr.includes('tool.name') || aStr.includes('strands.tool')) type = 'tool';
+                    else if (aStr.includes('tool.name') || aStr.includes('strands.tool') || aStr.includes('gen_ai.tool')) type = 'tool';
                     return { type, attrs: a, body: typeof data.body === 'string' ? data.body : JSON.stringify(data.body || '').slice(0, 5000), timestamp: ts };
                 }
                 return null;
             },
-            // Calculate duration from nano timestamps
+            // Classify span type based on actual Strands SDK span names
+            classifySpan(name, attrs) {
+                const n = (name || '').toLowerCase();
+                const op = (attrs?.['gen_ai.operation.name'] || '').toLowerCase();
+                // Agent invocation: "invoke_agent {name}"
+                if (n.startsWith('invoke_agent') || op === 'invoke_agent') return 'agent';
+                // Model/LLM call: "chat"
+                if (n === 'chat' || op === 'chat' || attrs?.['gen_ai.request.model'] || n.includes('converse') || n.includes('invoke_model')) return 'model';
+                // Tool execution: "execute_tool {name}"
+                if (n.startsWith('execute_tool') || op === 'execute_tool' || attrs?.['gen_ai.tool.name']) return 'tool';
+                // Event loop cycle
+                if (n === 'execute_event_loop_cycle' || n.includes('event_loop')) return 'cycle';
+                // Multi-agent / swarm
+                if (n.startsWith('invoke_') && !n.startsWith('invoke_agent')) return 'multiagent';
+                return 'span';
+            },
+            // Duration helpers
             spanDuration(s) {
                 if (!s.start_time || !s.end_time) return '';
                 try { const ms = (parseInt(s.end_time) - parseInt(s.start_time)) / 1e6; return ms > 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`; } catch { return ''; }
@@ -1651,189 +1663,265 @@
                 if (!s.start_time || !s.end_time) return 0;
                 try { return (parseInt(s.end_time) - parseInt(s.start_time)) / 1e6; } catch { return 0; }
             },
-            // Try to parse JSON and format it nicely
             tryFormatJson(str) {
                 if (!str) return '';
                 try { const obj = typeof str === 'string' ? JSON.parse(str) : str; return JSON.stringify(obj, null, 2); } catch { return String(str); }
             },
-            // Extract a readable value from OTEL gen_ai content (can be JSON string with messages array)
-            extractGenAiContent(raw) {
-                if (!raw) return '';
-                try {
-                    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    if (Array.isArray(parsed)) {
-                        return parsed.map(m => {
-                            const role = m.role || '';
-                            const content = typeof m.content === 'string' ? m.content :
-                                (Array.isArray(m.content) ? m.content.map(c => c.text || JSON.stringify(c)).join('') : JSON.stringify(m.content || ''));
-                            return role ? `[${role}] ${content}` : content;
-                        }).join('\n\n');
+            // Extract readable content from OTEL gen_ai message events
+            extractEventContent(events, filterNames) {
+                const parts = [];
+                for (const e of (events || [])) {
+                    if (filterNames && !filterNames.includes(e.name)) continue;
+                    const a = e.attrs || {};
+                    // Latest conventions: gen_ai.input.messages / gen_ai.output.messages
+                    for (const key of ['gen_ai.input.messages', 'gen_ai.output.messages', 'gen_ai.system_instructions']) {
+                        if (a[key]) {
+                            try {
+                                const parsed = typeof a[key] === 'string' ? JSON.parse(a[key]) : a[key];
+                                if (Array.isArray(parsed)) {
+                                    for (const msg of parsed) {
+                                        const role = msg.role || '';
+                                        const msgParts = (msg.parts || []).map(p => {
+                                            if (p.type === 'text') return p.content || '';
+                                            if (p.type === 'tool_call') return `[tool_call: ${p.name}(${JSON.stringify(p.arguments || {}).slice(0, 200)})]`;
+                                            if (p.type === 'tool_call_response') return `[tool_response: ${JSON.stringify(p.response || '').slice(0, 500)}]`;
+                                            return JSON.stringify(p).slice(0, 200);
+                                        }).join('');
+                                        if (role || msgParts) parts.push({ role, content: msgParts });
+                                    }
+                                }
+                            } catch { parts.push({ role: '', content: String(a[key]).slice(0, 1000) }); }
+                        }
                     }
-                    if (typeof parsed === 'object' && parsed.content) return String(parsed.content);
-                    return typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
-                } catch { return String(raw); }
+                    // Legacy conventions: content attribute
+                    if (a.content) {
+                        try {
+                            const parsed = typeof a.content === 'string' ? JSON.parse(a.content) : a.content;
+                            if (Array.isArray(parsed)) {
+                                const text = parsed.map(b => {
+                                    if (typeof b === 'string') return b;
+                                    if (b.text) return b.text;
+                                    if (b.toolUse) return `[tool_call: ${b.toolUse.name}]`;
+                                    if (b.toolResult) return `[tool_result: ${JSON.stringify(b.toolResult.content || '').slice(0, 300)}]`;
+                                    return JSON.stringify(b).slice(0, 200);
+                                }).join('');
+                                parts.push({ role: e.name?.replace('gen_ai.', '').replace('.message', '') || '', content: text });
+                            } else {
+                                parts.push({ role: '', content: String(parsed).slice(0, 1000) });
+                            }
+                        } catch { parts.push({ role: '', content: String(a.content).slice(0, 1000) }); }
+                    }
+                    // Simple message/finish_reason (gen_ai.choice events)
+                    if (a.message && !a.content) {
+                        try {
+                            const parsed = typeof a.message === 'string' ? JSON.parse(a.message) : a.message;
+                            if (Array.isArray(parsed)) {
+                                const text = parsed.map(b => b.text || (b.toolUse ? `[tool_call: ${b.toolUse.name}]` : '')).filter(Boolean).join('');
+                                if (text) parts.push({ role: 'assistant', content: text });
+                            } else {
+                                parts.push({ role: 'assistant', content: String(parsed).slice(0, 1000) });
+                            }
+                        } catch { parts.push({ role: 'assistant', content: String(a.message).slice(0, 1000) }); }
+                    }
+                }
+                return parts;
+            },
+            // Get tool name from span (check all possible attribute keys)
+            getToolName(span) {
+                const a = span.attrs || {};
+                return a['gen_ai.tool.name'] || a['tool.name'] || a['strands.tool.name'] || span.name?.replace('execute_tool ', '') || 'tool';
+            },
+            // Get tool input/output from events
+            getToolIO(span) {
+                const input = this.extractEventContent(span.events, ['gen_ai.tool.message', 'gen_ai.client.inference.operation.details']);
+                const output = this.extractEventContent(span.events, ['gen_ai.choice', 'gen_ai.client.inference.operation.details']);
+                // Also check direct attributes as fallback
+                const a = span.attrs || {};
+                const directInput = a['tool.input'] || a['strands.tool.input'] || '';
+                const directOutput = a['tool.output'] || a['strands.tool.output'] || '';
+                return {
+                    input: input.length > 0 ? input : (directInput ? [{ role: 'input', content: directInput }] : []),
+                    output: output.length > 0 ? output : (directOutput ? [{ role: 'output', content: directOutput }] : []),
+                    status: a['gen_ai.tool.status'] || a['tool.status'] || '',
+                    error: a['tool.error'] || ''
+                };
             },
             renderTraceDetailHtml(spans, sid) {
-                // Separate span types
+                if (!spans || spans.length === 0) {
+                    this.traceDetailHtml = '<div class="text-center py-8 text-txt-muted text-sm">No spans found for this session</div>';
+                    return;
+                }
+
+                const esc = (t) => this.escapeHtml(t);
+
+                // Categorize spans
                 const agentSpans = spans.filter(s => s.type === 'agent');
                 const modelSpans = spans.filter(s => s.type === 'model');
                 const toolSpans = spans.filter(s => s.type === 'tool');
+                const cycleSpans = spans.filter(s => s.type === 'cycle');
                 const inferenceSpans = spans.filter(s => s.type === 'inference');
-                const otherSpans = spans.filter(s => !['agent', 'model', 'tool', 'inference'].includes(s.type) && s.type !== null);
 
-                // Calculate total duration from agent span or first/last timestamps
-                let totalDur = '';
-                if (agentSpans.length > 0) totalDur = this.spanDuration(agentSpans[0]);
-                else if (spans.length >= 2) {
+                // Calculate total duration
+                let totalDurMs = 0;
+                if (agentSpans.length > 0) totalDurMs = this.spanDurationMs(agentSpans[0]);
+                else {
                     const sorted = [...spans].filter(s => s.start_time).sort((a, b) => parseInt(a.start_time) - parseInt(b.start_time));
                     if (sorted.length >= 2) {
                         const first = sorted[0], last = sorted[sorted.length - 1];
-                        const end = last.end_time || last.start_time;
-                        try { const ms = (parseInt(end) - parseInt(first.start_time)) / 1e6; totalDur = ms > 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`; } catch {}
+                        try { totalDurMs = (parseInt(last.end_time || last.start_time) - parseInt(first.start_time)) / 1e6; } catch {}
                     }
                 }
+                const totalDur = totalDurMs > 1000 ? `${(totalDurMs / 1000).toFixed(1)}s` : (totalDurMs > 0 ? `${Math.round(totalDurMs)}ms` : '-');
 
-                // Extract token counts from model span attributes or events
-                let inputTokens = 0, outputTokens = 0, modelName = '';
-                for (const s of modelSpans) {
+                // Token counts from model spans + agent span
+                let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0, modelName = '';
+                const tokenSources = [...modelSpans, ...agentSpans, ...inferenceSpans];
+                for (const s of tokenSources) {
                     const a = s.attrs || {};
-                    inputTokens += parseInt(a['gen_ai.usage.input_tokens'] || a['gen_ai.usage.prompt_tokens'] || 0);
-                    outputTokens += parseInt(a['gen_ai.usage.output_tokens'] || a['gen_ai.usage.completion_tokens'] || 0);
+                    const it = parseInt(a['gen_ai.usage.input_tokens'] || a['gen_ai.usage.prompt_tokens'] || 0);
+                    const ot = parseInt(a['gen_ai.usage.output_tokens'] || a['gen_ai.usage.completion_tokens'] || 0);
+                    const cr = parseInt(a['gen_ai.usage.cache_read_input_tokens'] || 0);
+                    const cw = parseInt(a['gen_ai.usage.cache_write_input_tokens'] || 0);
+                    if (s.type === 'agent') { inputTokens = it || inputTokens; outputTokens = ot || outputTokens; cacheRead = cr || cacheRead; cacheWrite = cw || cacheWrite; }
+                    else if (!inputTokens) { inputTokens += it; outputTokens += ot; cacheRead += cr; cacheWrite += cw; }
                     if (!modelName) modelName = a['gen_ai.request.model'] || a['gen_ai.response.model'] || '';
-                    // Also check events for token usage
+                    // Also check events
                     for (const e of (s.events || [])) {
                         const ea = e.attrs || {};
-                        inputTokens += parseInt(ea['gen_ai.usage.input_tokens'] || 0);
-                        outputTokens += parseInt(ea['gen_ai.usage.output_tokens'] || 0);
+                        if (!inputTokens) { inputTokens += parseInt(ea['gen_ai.usage.input_tokens'] || 0); outputTokens += parseInt(ea['gen_ai.usage.output_tokens'] || 0); }
                     }
                 }
 
-                // Also try inference-type logs for token info
-                for (const s of inferenceSpans) {
-                    const a = s.attrs || {};
-                    if (!inputTokens) inputTokens += parseInt(a['gen_ai.usage.input_tokens'] || a['gen_ai.usage.prompt_tokens'] || 0);
-                    if (!outputTokens) outputTokens += parseInt(a['gen_ai.usage.output_tokens'] || a['gen_ai.usage.completion_tokens'] || 0);
-                    if (!modelName) modelName = a['gen_ai.request.model'] || a['gen_ai.response.model'] || '';
-                }
+                // Unique tool names
+                const toolNames = [...new Set(toolSpans.map(s => this.getToolName(s)).filter(Boolean))];
+                // Number of event loop cycles = number of LLM calls
+                const llmCalls = modelSpans.length || cycleSpans.length || inferenceSpans.length;
 
-                // Extract tool names used
-                const toolNames = [...new Set(toolSpans.map(s => s.attrs?.['tool.name'] || s.attrs?.['strands.tool.name'] || s.name || '').filter(Boolean))];
-
-                // --- Build HTML ---
+                // --- Build HTML (mobile-first, single column) ---
                 let html = '';
 
-                // Header with session info
-                html += `<div class="mb-4"><div class="text-sm font-semibold text-txt mb-1">${this.escapeHtml(sid)}</div>`;
-                if (modelName) html += `<div class="text-[11px] text-txt-muted">Model: <span class="text-txt-secondary">${this.escapeHtml(modelName)}</span></div>`;
+                // ===== HEADER =====
+                html += `<div class="mb-3">`;
+                html += `<div class="text-[13px] font-semibold text-txt break-all leading-tight">${esc(sid)}</div>`;
+                if (modelName) {
+                    const shortModel = modelName.split('/').pop().split(':')[0];
+                    html += `<div class="text-[11px] text-txt-muted mt-0.5">${esc(shortModel)}</div>`;
+                }
                 html += `</div>`;
 
-                // Stats bar
-                html += `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">`;
-                html += `<div class="bg-bg-card border border-border rounded-lg p-2.5 text-center"><div class="text-lg font-bold">${totalDur || '-'}</div><div class="text-[10px] text-txt-muted uppercase">Duration</div></div>`;
-                html += `<div class="bg-bg-card border border-border rounded-lg p-2.5 text-center"><div class="text-lg font-bold">${modelSpans.length || inferenceSpans.length || '-'}</div><div class="text-[10px] text-txt-muted uppercase">LLM Calls</div></div>`;
-                html += `<div class="bg-bg-card border border-border rounded-lg p-2.5 text-center"><div class="text-lg font-bold">${toolSpans.length || '-'}</div><div class="text-[10px] text-txt-muted uppercase">Tool Calls</div></div>`;
+                // ===== STATS — 2x2 grid (mobile friendly) =====
                 const totalTokens = inputTokens + outputTokens;
-                html += `<div class="bg-bg-card border border-border rounded-lg p-2.5 text-center"><div class="text-lg font-bold">${totalTokens > 0 ? (totalTokens > 1000 ? (totalTokens / 1000).toFixed(1) + 'k' : totalTokens) : '-'}</div><div class="text-[10px] text-txt-muted uppercase">Tokens</div></div>`;
+                const fmtTokens = (n) => n > 1000 ? (n / 1000).toFixed(1) + 'k' : (n || '-');
+                html += `<div class="grid grid-cols-2 gap-2 mb-3">`;
+                html += `<div class="bg-bg-card border border-border rounded-lg px-3 py-2"><div class="text-[10px] text-txt-muted uppercase">Duration</div><div class="text-base font-bold">${totalDur}</div></div>`;
+                html += `<div class="bg-bg-card border border-border rounded-lg px-3 py-2"><div class="text-[10px] text-txt-muted uppercase">LLM Calls</div><div class="text-base font-bold">${llmCalls || '-'}</div></div>`;
+                html += `<div class="bg-bg-card border border-border rounded-lg px-3 py-2"><div class="text-[10px] text-txt-muted uppercase">Tool Calls</div><div class="text-base font-bold">${toolSpans.length || '-'}</div></div>`;
+                html += `<div class="bg-bg-card border border-border rounded-lg px-3 py-2"><div class="text-[10px] text-txt-muted uppercase">Tokens</div><div class="text-base font-bold">${fmtTokens(totalTokens)}</div></div>`;
                 html += `</div>`;
 
-                // Token breakdown if available
+                // Token breakdown bar
                 if (inputTokens > 0 || outputTokens > 0) {
-                    const totalTk = inputTokens + outputTokens;
-                    const inPct = totalTk > 0 ? Math.round(inputTokens / totalTk * 100) : 0;
-                    html += `<div class="bg-bg-card border border-border rounded-lg p-3 mb-4"><div class="flex justify-between text-[11px] text-txt-muted mb-1.5"><span>Input: ${inputTokens.toLocaleString()}</span><span>Output: ${outputTokens.toLocaleString()}</span></div>`;
-                    html += `<div class="h-1.5 bg-bg rounded-full overflow-hidden flex"><div class="bg-accent" style="width:${inPct}%"></div><div class="bg-success" style="width:${100 - inPct}%"></div></div></div>`;
-                }
-
-                // Tools used (pill tags)
-                if (toolNames.length > 0) {
-                    html += `<div class="flex flex-wrap gap-1.5 mb-4">`;
-                    for (const tn of toolNames) html += `<span class="text-[11px] px-2 py-0.5 rounded-full bg-success-muted text-success font-medium">🔧 ${this.escapeHtml(tn)}</span>`;
-                    html += `</div>`;
-                }
-
-                // ===== SPAN TREE (waterfall) =====
-                // Build parent-child tree
-                const spanMap = new Map();
-                const roots = [];
-                const treeSpans = spans.filter(s => s.span_id);
-                for (const s of treeSpans) spanMap.set(s.span_id, { ...s, children: [] });
-                for (const s of treeSpans) {
-                    const node = spanMap.get(s.span_id);
-                    if (s.parent_span_id && spanMap.has(s.parent_span_id)) spanMap.get(s.parent_span_id).children.push(node);
-                    else roots.push(node);
-                }
-
-                if (roots.length > 0) {
-                    html += `<div class="mb-4"><div class="text-xs font-semibold text-txt-muted uppercase mb-2 flex items-center gap-1.5">🌳 Span Tree</div>`;
-                    const renderTree = (node, depth) => {
-                        const indent = depth * 16;
-                        const dur = this.spanDuration(node);
-                        const durMs = this.spanDurationMs(node);
-                        const typeColors = { agent: 'text-accent-light', model: 'text-accent', tool: 'text-success', span: 'text-txt-secondary' };
-                        const typeBgs = { agent: 'bg-accent-subtle', model: 'bg-accent-subtle', tool: 'bg-success-muted', span: 'bg-bg-card' };
-                        const typeIcons = { agent: '🤖', model: '🧠', tool: '🔧', span: '📍' };
-                        const color = typeColors[node.type] || 'text-txt-muted';
-                        const bg = typeBgs[node.type] || 'bg-bg-card';
-                        const icon = typeIcons[node.type] || '•';
-                        const toolName = node.attrs?.['tool.name'] || node.attrs?.['strands.tool.name'] || '';
-                        const displayName = toolName || node.name || node.type;
-
-                        html += `<div class="flex items-center gap-1.5 py-1 hover:bg-bg-hover rounded px-1 group" style="padding-left:${indent + 4}px">`;
-                        // Connector line
-                        if (depth > 0) html += `<span class="text-border text-[10px]">├─</span>`;
-                        // Type badge
-                        html += `<span class="text-[10px] ${color}">${icon}</span>`;
-                        // Name
-                        html += `<span class="text-[12px] font-medium ${color} truncate flex-1">${this.escapeHtml(displayName)}</span>`;
-                        // Duration bar + label
-                        if (dur) {
-                            const maxMs = this.spanDurationMs(roots[0] || spans[0]) || 1;
-                            const pct = Math.min(100, Math.max(2, (durMs / maxMs) * 100));
-                            html += `<div class="w-24 flex items-center gap-1"><div class="flex-1 h-1 bg-bg rounded-full overflow-hidden"><div class="${bg.replace('bg-', 'bg-').replace('-subtle', '').replace('-muted', '')} h-full rounded-full" style="width:${pct}%; min-width:2px; background:${node.type === 'model' ? '#6366f1' : node.type === 'tool' ? '#22c55e' : node.type === 'agent' ? '#818cf8' : '#3f3f46'}"></div></div>`;
-                            html += `<span class="text-[10px] text-txt-muted w-12 text-right tabular-nums">${dur}</span></div>`;
-                        }
+                    const total = inputTokens + outputTokens;
+                    const inPct = Math.round(inputTokens / total * 100);
+                    html += `<div class="bg-bg-card border border-border rounded-lg px-3 py-2 mb-3">`;
+                    html += `<div class="flex justify-between text-[10px] text-txt-muted mb-1"><span>⬇ Input: ${inputTokens.toLocaleString()}</span><span>⬆ Output: ${outputTokens.toLocaleString()}</span></div>`;
+                    html += `<div class="h-2 bg-bg rounded-full overflow-hidden flex"><div class="bg-indigo-500" style="width:${inPct}%"></div><div class="bg-emerald-500" style="width:${100 - inPct}%"></div></div>`;
+                    if (cacheRead > 0 || cacheWrite > 0) {
+                        html += `<div class="flex gap-3 text-[10px] text-txt-muted mt-1">`;
+                        if (cacheRead > 0) html += `<span>📖 Cache read: ${cacheRead.toLocaleString()}</span>`;
+                        if (cacheWrite > 0) html += `<span>✏️ Cache write: ${cacheWrite.toLocaleString()}</span>`;
                         html += `</div>`;
-                        // Recurse children
-                        for (const child of node.children) renderTree(child, depth + 1);
-                    };
-                    for (const root of roots) renderTree(root, 0);
+                    }
                     html += `</div>`;
                 }
 
-                // ===== CONVERSATION / TIMELINE VIEW =====
-                // Build an ordered timeline from all spans
-                html += `<div class="text-xs font-semibold text-txt-muted uppercase mb-2 flex items-center gap-1.5">💬 Timeline</div>`;
-                html += `<div class="space-y-2 mb-4">`;
+                // Tools used (pills — scrollable on mobile)
+                if (toolNames.length > 0) {
+                    html += `<div class="flex flex-wrap gap-1.5 mb-3">`;
+                    for (const tn of toolNames) {
+                        const count = toolSpans.filter(s => this.getToolName(s) === tn).length;
+                        html += `<span class="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium whitespace-nowrap">🔧 ${esc(tn)}${count > 1 ? ` ×${count}` : ''}</span>`;
+                    }
+                    html += `</div>`;
+                }
 
-                // Flatten all meaningful events into a timeline
+                // ===== SPAN TREE (collapsible) =====
+                const treeSpans = spans.filter(s => s.span_id);
+                if (treeSpans.length > 0) {
+                    const spanMap = new Map();
+                    const roots = [];
+                    for (const s of treeSpans) spanMap.set(s.span_id, { ...s, children: [] });
+                    for (const s of treeSpans) {
+                        const node = spanMap.get(s.span_id);
+                        if (s.parent_span_id && spanMap.has(s.parent_span_id)) spanMap.get(s.parent_span_id).children.push(node);
+                        else roots.push(node);
+                    }
+
+                    if (roots.length > 0) {
+                        html += `<details class="mb-3 border border-border rounded-lg overflow-hidden">`;
+                        html += `<summary class="px-3 py-2 bg-bg-card text-[12px] font-semibold text-txt-muted uppercase cursor-pointer hover:bg-bg-hover flex items-center gap-1.5">🌳 Span Tree <span class="text-[10px] font-normal">(${treeSpans.length})</span></summary>`;
+                        html += `<div class="p-2 overflow-x-auto">`;
+
+                        const maxDurMs = this.spanDurationMs(roots[0]) || totalDurMs || 1;
+                        const renderTree = (node, depth) => {
+                            const dur = this.spanDuration(node);
+                            const durMs = this.spanDurationMs(node);
+                            const pct = Math.min(100, Math.max(2, (durMs / maxDurMs) * 100));
+                            const icons = { agent: '🤖', model: '🧠', tool: '🔧', cycle: '🔄', span: '📍', multiagent: '👥' };
+                            const colors = { agent: '#818cf8', model: '#6366f1', tool: '#22c55e', cycle: '#f59e0b', span: '#71717a', multiagent: '#a78bfa' };
+                            const icon = icons[node.type] || '•';
+                            const color = colors[node.type] || '#71717a';
+                            const toolName = node.type === 'tool' ? this.getToolName(node) : '';
+                            const displayName = toolName || node.name || node.type;
+                            const pl = depth * 12;
+
+                            html += `<div class="flex items-center gap-1 py-0.5 min-w-0" style="padding-left:${pl}px">`;
+                            if (depth > 0) html += `<span class="text-[10px] text-border shrink-0">├</span>`;
+                            html += `<span class="text-[10px] shrink-0">${icon}</span>`;
+                            html += `<span class="text-[11px] truncate min-w-0 flex-1" style="color:${color}">${esc(displayName)}</span>`;
+                            if (dur) {
+                                html += `<div class="flex items-center gap-1 shrink-0 ml-1" style="width:80px">`;
+                                html += `<div class="flex-1 h-1 bg-bg rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%;background:${color}"></div></div>`;
+                                html += `<span class="text-[9px] text-txt-muted tabular-nums" style="width:36px;text-align:right">${dur}</span></div>`;
+                            }
+                            html += `</div>`;
+                            for (const child of node.children) renderTree(child, depth + 1);
+                        };
+                        for (const root of roots) renderTree(root, 0);
+                        html += `</div></details>`;
+                    }
+                }
+
+                // ===== TIMELINE — the main view =====
+                // Build ordered timeline of model calls and tool calls
                 const timeline = [];
 
-                // Model spans with gen_ai events
                 for (const s of modelSpans) {
-                    const a = s.attrs || {};
                     const dur = this.spanDuration(s);
-                    // Check events for prompt/completion content
-                    const promptEvts = (s.events || []).filter(e => e.name === 'gen_ai.user.message' || e.name === 'gen_ai.system.message' || e.attrs?.['gen_ai.prompt']);
-                    const completionEvts = (s.events || []).filter(e => e.name === 'gen_ai.assistant.message' || e.name === 'gen_ai.choice' || e.attrs?.['gen_ai.completion']);
-                    // Also check direct attributes
-                    const promptContent = a['gen_ai.prompt'] || '';
-                    const completionContent = a['gen_ai.completion'] || a['gen_ai.choice'] || '';
-                    timeline.push({ type: 'model', span: s, dur, promptEvts, completionEvts, promptContent, completionContent, time: s.start_time });
+                    const a = s.attrs || {};
+                    const ttft = a['gen_ai.server.time_to_first_token'] ? `${Math.round(parseFloat(a['gen_ai.server.time_to_first_token']))}ms TTFT` : '';
+                    const latency = a['gen_ai.server.request.duration'] ? `${Math.round(parseFloat(a['gen_ai.server.request.duration']))}ms` : '';
+                    // Extract input/output from events
+                    const inputMsgs = this.extractEventContent(s.events, ['gen_ai.user.message', 'gen_ai.system.message', 'gen_ai.tool.message', 'gen_ai.client.inference.operation.details']);
+                    const outputMsgs = this.extractEventContent(s.events, ['gen_ai.choice', 'gen_ai.assistant.message']);
+                    // Check direct attrs too
+                    if (inputMsgs.length === 0 && a['gen_ai.prompt']) inputMsgs.push({ role: 'user', content: String(a['gen_ai.prompt']).slice(0, 2000) });
+                    if (outputMsgs.length === 0 && (a['gen_ai.completion'] || a['gen_ai.choice'])) outputMsgs.push({ role: 'assistant', content: String(a['gen_ai.completion'] || a['gen_ai.choice']).slice(0, 2000) });
+                    // Token usage per call
+                    const callIn = parseInt(a['gen_ai.usage.input_tokens'] || a['gen_ai.usage.prompt_tokens'] || 0);
+                    const callOut = parseInt(a['gen_ai.usage.output_tokens'] || a['gen_ai.usage.completion_tokens'] || 0);
+                    timeline.push({ type: 'model', span: s, dur, ttft, latency, inputMsgs, outputMsgs, callIn, callOut, time: s.start_time });
                 }
 
-                // Tool spans
                 for (const s of toolSpans) {
-                    const a = s.attrs || {};
                     const dur = this.spanDuration(s);
-                    const toolName = a['tool.name'] || a['strands.tool.name'] || s.name || 'tool';
-                    const toolInput = a['tool.input'] || a['strands.tool.input'] || '';
-                    const toolOutput = a['tool.output'] || a['strands.tool.output'] || '';
-                    const toolError = a['tool.error'] || '';
-                    const statusCode = s.status?.code;
-                    timeline.push({ type: 'tool', span: s, dur, toolName, toolInput, toolOutput, toolError, statusCode, time: s.start_time });
+                    const toolName = this.getToolName(s);
+                    const io = this.getToolIO(s);
+                    const isError = s.status?.code === 2 || io.error || io.status === 'error';
+                    timeline.push({ type: 'tool', span: s, dur, toolName, io, isError, time: s.start_time });
                 }
 
-                // Inference-type logs (fallback when we don't have proper spans)
+                // Inference logs (fallback)
                 for (const s of inferenceSpans) {
                     const a = s.attrs || {};
                     timeline.push({
@@ -1843,149 +1931,173 @@
                     });
                 }
 
-                // Sort by time
                 timeline.sort((a, b) => {
                     const ta = parseInt(a.time) || new Date(a.time || 0).getTime() * 1e6;
                     const tb = parseInt(b.time) || new Date(b.time || 0).getTime() * 1e6;
                     return ta - tb;
                 });
 
-                if (timeline.length === 0) {
-                    // Fallback: show all spans as cards
+                html += `<div class="text-[11px] font-semibold text-txt-muted uppercase mb-2">💬 Timeline</div>`;
+
+                if (timeline.length === 0 && spans.length > 0) {
+                    // Fallback: show all spans as simple cards
+                    html += `<div class="space-y-2 mb-3">`;
                     for (const s of spans) {
                         const a = s.attrs || {};
-                        const body = s.body || '';
-                        const dur = s.start_time && s.end_time ? this.spanDuration(s) : '';
-                        const name = a['tool.name'] || s.name || s.type || 'span';
+                        const dur = this.spanDuration(s);
+                        const name = a['gen_ai.tool.name'] || a['tool.name'] || s.name || s.type || 'span';
                         const aKeys = Object.keys(a).filter(k => !k.startsWith('_'));
-                        html += `<div class="bg-bg-card border border-border rounded-lg p-3">`;
-                        html += `<div class="flex items-center justify-between mb-2"><span class="text-xs font-semibold text-txt-secondary">${this.escapeHtml(name)}</span>`;
-                        if (dur) html += `<span class="text-[10px] text-txt-muted">${dur}</span>`;
-                        html += `</div>`;
-                        if (aKeys.length > 0) {
-                            html += `<div class="space-y-1">`;
-                            for (const k of aKeys.slice(0, 10)) {
-                                const v = String(a[k]).slice(0, 500);
-                                html += `<div class="flex gap-2"><span class="text-[10px] text-txt-muted shrink-0 w-36 truncate" title="${this.escapeHtml(k)}">${this.escapeHtml(k)}</span><span class="text-[11px] text-txt-secondary font-mono truncate">${this.escapeHtml(v)}</span></div>`;
-                            }
-                            html += `</div>`;
+                        html += `<details class="border border-border rounded-lg overflow-hidden">`;
+                        html += `<summary class="px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer flex items-center justify-between">`;
+                        html += `<span class="text-[12px] font-medium text-txt-secondary truncate">${esc(name)}</span>`;
+                        if (dur) html += `<span class="text-[10px] text-txt-muted shrink-0 ml-2">${dur}</span>`;
+                        html += `</summary><div class="p-2.5 space-y-1 text-[11px]">`;
+                        for (const k of aKeys.slice(0, 15)) {
+                            const v = String(a[k]).slice(0, 300);
+                            html += `<div class="flex gap-2 min-w-0"><span class="text-txt-muted shrink-0 truncate" style="max-width:40%">${esc(k)}</span><span class="text-txt-secondary font-mono truncate min-w-0">${esc(v)}</span></div>`;
                         }
-                        if (body) html += `<div class="text-[11px] text-txt-muted font-mono mt-2 whitespace-pre-wrap max-h-24 overflow-y-auto">${this.escapeHtml(String(body).slice(0, 500))}</div>`;
-                        html += `</div>`;
+                        html += `</div></details>`;
                     }
-                }
+                    html += `</div>`;
+                } else {
+                    html += `<div class="space-y-2 mb-3">`;
+                    let step = 0;
+                    for (const item of timeline) {
+                        step++;
+                        if (item.type === 'model') {
+                            const m = item;
+                            const tokenInfo = (m.callIn || m.callOut) ? `${m.callIn.toLocaleString()}→${m.callOut.toLocaleString()} tok` : '';
+                            html += `<details class="border border-indigo-500/20 rounded-lg overflow-hidden">`;
+                            html += `<summary class="px-3 py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer flex items-center gap-2 min-w-0">`;
+                            html += `<span class="text-[11px] shrink-0">🧠</span>`;
+                            html += `<span class="text-[12px] font-semibold text-indigo-400 shrink-0">LLM #${step}</span>`;
+                            html += `<span class="flex-1"></span>`;
+                            html += `<span class="text-[10px] text-txt-muted flex items-center gap-1.5 shrink-0 flex-wrap justify-end">`;
+                            if (tokenInfo) html += `<span class="bg-bg rounded px-1 py-0.5">${tokenInfo}</span>`;
+                            if (m.dur) html += `<span class="bg-bg rounded px-1 py-0.5">${m.dur}</span>`;
+                            html += `</span></summary>`;
+                            html += `<div class="p-3 space-y-2.5 bg-bg">`;
 
-                let stepNum = 0;
-                for (const item of timeline) {
-                    stepNum++;
-                    if (item.type === 'model') {
-                        const m = item;
-                        html += `<div class="border border-accent/20 rounded-lg overflow-hidden">`;
-                        // Header
-                        html += `<div class="bg-accent-subtle px-3 py-2 flex items-center justify-between cursor-pointer" onclick="this.parentElement.querySelector('.model-body').classList.toggle('hidden')">`;
-                        html += `<div class="flex items-center gap-2"><span class="text-xs">🧠</span><span class="text-[12px] font-semibold text-accent-light">LLM Call #${stepNum}</span></div>`;
-                        html += `<div class="flex items-center gap-2 text-[10px] text-txt-muted">${m.dur ? `<span class="bg-bg rounded px-1.5 py-0.5">${m.dur}</span>` : ''}<span>▼</span></div></div>`;
-                        // Body (collapsible)
-                        html += `<div class="model-body p-3 space-y-2 bg-bg">`;
-                        // Prompt
-                        const promptText = m.promptContent || m.promptEvts.map(e => {
-                            const ea = e.attrs || {};
-                            return ea['gen_ai.prompt'] || ea['gen_ai.system.message'] || ea['gen_ai.user.message'] || JSON.stringify(ea);
-                        }).join('\\n');
-                        if (promptText) {
-                            const rendered = this.extractGenAiContent(promptText);
-                            html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Input</div>`;
-                            html += `<div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-60 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(rendered.slice(0, 3000))}</div></div>`;
-                        }
-                        // Completion
-                        const compText = m.completionContent || m.completionEvts.map(e => {
-                            const ea = e.attrs || {};
-                            return ea['gen_ai.completion'] || ea['gen_ai.choice'] || ea['gen_ai.assistant.message'] || JSON.stringify(ea);
-                        }).join('\\n');
-                        if (compText) {
-                            const rendered = this.extractGenAiContent(compText);
-                            html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Output</div>`;
-                            html += `<div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-60 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(rendered.slice(0, 3000))}</div></div>`;
-                        }
-                        // If no prompt/completion but has attrs, show key attrs
-                        if (!promptText && !compText) {
-                            const a = m.span.attrs || {};
-                            const keys = Object.keys(a).filter(k => k.startsWith('gen_ai.') || k.startsWith('strands.'));
-                            if (keys.length > 0) {
-                                html += `<div class="space-y-1">`;
-                                for (const k of keys.slice(0, 8)) html += `<div class="flex gap-2"><span class="text-[10px] text-accent shrink-0">${this.escapeHtml(k)}</span><span class="text-[11px] text-txt-secondary font-mono truncate">${this.escapeHtml(String(a[k]).slice(0, 200))}</span></div>`;
+                            // Extra metrics
+                            if (m.ttft || m.latency) {
+                                html += `<div class="flex gap-2 text-[10px] text-txt-muted flex-wrap">`;
+                                if (m.ttft) html += `<span class="bg-bg-card rounded px-1.5 py-0.5">⚡ ${m.ttft}</span>`;
+                                if (m.latency) html += `<span class="bg-bg-card rounded px-1.5 py-0.5">⏱ ${m.latency}</span>`;
                                 html += `</div>`;
                             }
-                        }
-                        html += `</div></div>`;
-                    } else if (item.type === 'tool') {
-                        const isError = item.statusCode === 2 || item.toolError;
-                        const borderColor = isError ? 'border-danger/20' : 'border-success/20';
-                        const headerBg = isError ? 'bg-danger-muted' : 'bg-success-muted';
-                        const nameColor = isError ? 'text-danger' : 'text-success';
-                        html += `<div class="border ${borderColor} rounded-lg overflow-hidden">`;
-                        html += `<div class="${headerBg} px-3 py-2 flex items-center justify-between cursor-pointer" onclick="this.parentElement.querySelector('.tool-body').classList.toggle('hidden')">`;
-                        html += `<div class="flex items-center gap-2"><span class="text-xs">${isError ? '❌' : '🔧'}</span><span class="text-[12px] font-semibold ${nameColor}">${this.escapeHtml(item.toolName)}</span></div>`;
-                        html += `<div class="flex items-center gap-2 text-[10px] text-txt-muted">${item.dur ? `<span class="bg-bg rounded px-1.5 py-0.5">${item.dur}</span>` : ''}<span>▼</span></div></div>`;
-                        html += `<div class="tool-body hidden p-3 space-y-2 bg-bg">`;
-                        if (item.toolInput) {
-                            const formatted = this.tryFormatJson(item.toolInput);
-                            html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Input</div>`;
-                            html += `<div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(formatted.slice(0, 2000))}</div></div>`;
-                        }
-                        if (item.toolOutput) {
-                            const formatted = this.tryFormatJson(item.toolOutput);
-                            html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Output</div>`;
-                            html += `<div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(formatted.slice(0, 2000))}</div></div>`;
-                        }
-                        if (item.toolError) {
-                            html += `<div><div class="text-[10px] text-danger uppercase mb-1 font-semibold">Error</div>`;
-                            html += `<div class="text-[12px] text-danger font-mono whitespace-pre-wrap max-h-36 overflow-y-auto bg-danger-muted rounded-lg p-2.5">${this.escapeHtml(String(item.toolError).slice(0, 1000))}</div></div>`;
-                        }
-                        // Show other relevant attrs
-                        const a = item.span.attrs || {};
-                        const extraKeys = Object.keys(a).filter(k => !['tool.name', 'tool.input', 'tool.output', 'tool.error', 'strands.tool.name', 'strands.tool.input', 'strands.tool.output'].includes(k));
-                        if (extraKeys.length > 0 && extraKeys.length <= 10) {
-                            html += `<details class="text-[11px]"><summary class="text-txt-muted cursor-pointer hover:text-txt-secondary">Attributes (${extraKeys.length})</summary><div class="mt-1 space-y-0.5">`;
-                            for (const k of extraKeys) html += `<div class="flex gap-2"><span class="text-txt-muted shrink-0">${this.escapeHtml(k)}:</span><span class="text-txt-secondary font-mono truncate">${this.escapeHtml(String(a[k]).slice(0, 200))}</span></div>`;
+
+                            // Input messages
+                            if (m.inputMsgs.length > 0) {
+                                html += `<div>`;
+                                html += `<div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Input</div>`;
+                                for (const msg of m.inputMsgs.slice(0, 5)) {
+                                    const roleLabel = msg.role ? `<span class="text-[10px] text-indigo-400 font-medium">[${esc(msg.role)}]</span> ` : '';
+                                    const content = msg.content.slice(0, 2000);
+                                    html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted mb-1">${roleLabel}${esc(content)}</div>`;
+                                }
+                                if (m.inputMsgs.length > 5) html += `<div class="text-[10px] text-txt-muted">+${m.inputMsgs.length - 5} more messages</div>`;
+                                html += `</div>`;
+                            }
+
+                            // Output
+                            if (m.outputMsgs.length > 0) {
+                                html += `<div>`;
+                                html += `<div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Output</div>`;
+                                for (const msg of m.outputMsgs.slice(0, 3)) {
+                                    const content = msg.content.slice(0, 3000);
+                                    html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted mb-1">${esc(content)}</div>`;
+                                }
+                                html += `</div>`;
+                            }
+
+                            // If no events, show key attributes
+                            if (m.inputMsgs.length === 0 && m.outputMsgs.length === 0) {
+                                const a = m.span.attrs || {};
+                                const keys = Object.keys(a).filter(k => k.startsWith('gen_ai.') || k.startsWith('event_loop'));
+                                if (keys.length > 0) {
+                                    html += `<div class="space-y-0.5">`;
+                                    for (const k of keys.slice(0, 8)) html += `<div class="flex gap-2 text-[11px] min-w-0"><span class="text-indigo-400 shrink-0 truncate" style="max-width:40%">${esc(k)}</span><span class="text-txt-secondary font-mono truncate min-w-0">${esc(String(a[k]).slice(0, 200))}</span></div>`;
+                                    html += `</div>`;
+                                }
+                            }
+
                             html += `</div></details>`;
-                        }
-                        html += `</div></div>`;
-                    } else if (item.type === 'inference_log') {
-                        // Fallback inference log (when we don't have proper OTLP spans)
-                        if (item.prompt || item.completion) {
-                            html += `<div class="border border-accent/20 rounded-lg overflow-hidden">`;
-                            html += `<div class="bg-accent-subtle px-3 py-2 flex items-center gap-2 cursor-pointer" onclick="this.parentElement.querySelector('.inf-body').classList.toggle('hidden')">`;
-                            html += `<span class="text-xs">🧠</span><span class="text-[12px] font-semibold text-accent-light">Inference</span><span class="text-[10px] text-txt-muted ml-auto">▼</span></div>`;
-                            html += `<div class="inf-body p-3 space-y-2 bg-bg">`;
-                            if (item.prompt) {
-                                const rendered = this.extractGenAiContent(item.prompt);
-                                html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Prompt</div><div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(rendered.slice(0, 2000))}</div></div>`;
+
+                        } else if (item.type === 'tool') {
+                            const t = item;
+                            const borderColor = t.isError ? 'border-red-500/20' : 'border-emerald-500/20';
+                            const bgColor = t.isError ? 'bg-red-500/5 hover:bg-red-500/10' : 'bg-emerald-500/5 hover:bg-emerald-500/10';
+                            const nameColor = t.isError ? 'text-red-400' : 'text-emerald-400';
+                            const icon = t.isError ? '❌' : '🔧';
+
+                            html += `<details class="border ${borderColor} rounded-lg overflow-hidden">`;
+                            html += `<summary class="px-3 py-2.5 ${bgColor} cursor-pointer flex items-center gap-2 min-w-0">`;
+                            html += `<span class="text-[11px] shrink-0">${icon}</span>`;
+                            html += `<span class="text-[12px] font-semibold ${nameColor} truncate">${esc(t.toolName)}</span>`;
+                            html += `<span class="flex-1"></span>`;
+                            if (t.io.status) html += `<span class="text-[10px] px-1.5 py-0.5 rounded ${t.isError ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}">${esc(t.io.status)}</span>`;
+                            if (t.dur) html += `<span class="text-[10px] text-txt-muted bg-bg rounded px-1 py-0.5 shrink-0">${t.dur}</span>`;
+                            html += `</summary>`;
+                            html += `<div class="p-3 space-y-2 bg-bg">`;
+
+                            // Tool input
+                            if (t.io.input.length > 0) {
+                                html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Input</div>`;
+                                for (const msg of t.io.input) {
+                                    const content = msg.content.slice(0, 2000);
+                                    const formatted = this.tryFormatJson(content);
+                                    html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-36 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(formatted)}</div>`;
+                                }
+                                html += `</div>`;
                             }
-                            if (item.completion) {
-                                const rendered = this.extractGenAiContent(item.completion);
-                                html += `<div><div class="text-[10px] text-txt-muted uppercase mb-1 font-semibold">Completion</div><div class="text-[12px] text-txt-secondary font-mono whitespace-pre-wrap max-h-48 overflow-y-auto bg-bg-card rounded-lg p-2.5 border border-border-muted">${this.escapeHtml(rendered.slice(0, 2000))}</div></div>`;
+
+                            // Tool output
+                            if (t.io.output.length > 0) {
+                                html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Output</div>`;
+                                for (const msg of t.io.output) {
+                                    const content = msg.content.slice(0, 2000);
+                                    const formatted = this.tryFormatJson(content);
+                                    html += `<div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-36 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(formatted)}</div>`;
+                                }
+                                html += `</div>`;
                             }
-                            html += `</div></div>`;
+
+                            // Tool error
+                            if (t.io.error) {
+                                html += `<div><div class="text-[10px] text-red-400 uppercase font-semibold mb-1">Error</div>`;
+                                html += `<div class="text-[11px] text-red-400 font-mono whitespace-pre-wrap break-words max-h-36 overflow-y-auto bg-red-500/5 rounded-lg p-2">${esc(String(t.io.error).slice(0, 1000))}</div></div>`;
+                            }
+
+                            html += `</div></details>`;
+
+                        } else if (item.type === 'inference_log') {
+                            if (item.prompt || item.completion) {
+                                html += `<details class="border border-indigo-500/20 rounded-lg overflow-hidden">`;
+                                html += `<summary class="px-3 py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer flex items-center gap-2">`;
+                                html += `<span class="text-[11px]">🧠</span><span class="text-[12px] font-semibold text-indigo-400">Inference</span></summary>`;
+                                html += `<div class="p-3 space-y-2 bg-bg">`;
+                                if (item.prompt) html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Prompt</div><div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(String(item.prompt).slice(0, 2000))}</div></div>`;
+                                if (item.completion) html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Completion</div><div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(String(item.completion).slice(0, 2000))}</div></div>`;
+                                html += `</div></details>`;
+                            }
                         }
                     }
+                    html += `</div>`;
                 }
 
-                html += `</div>`;
-
-                // ===== RAW SPANS (collapsed at bottom) =====
+                // ===== RAW SPANS (collapsed) =====
                 if (spans.length > 0) {
-                    html += `<details class="border border-border rounded-lg overflow-hidden mt-4"><summary class="flex items-center gap-2 px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer text-[12px] font-medium text-txt-muted">📋 Raw Spans (${spans.length})</summary>`;
+                    html += `<details class="border border-border rounded-lg overflow-hidden">`;
+                    html += `<summary class="px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer text-[11px] font-semibold text-txt-muted uppercase flex items-center gap-1.5">📋 Raw Spans <span class="font-normal">(${spans.length})</span></summary>`;
                     html += `<div class="max-h-[50vh] overflow-y-auto p-2 space-y-1">`;
                     for (const s of spans) {
                         const a = s.attrs || {};
-                        const name = a['tool.name'] || s.name || s.type || '';
-                        const dur = this.spanDuration(s) || '';
-                        html += `<details class="border border-border-muted rounded-lg"><summary class="px-2.5 py-1.5 hover:bg-bg-hover cursor-pointer text-[11px] flex items-center justify-between">`;
-                        html += `<span class="font-mono truncate flex-1">${this.escapeHtml(name)}</span>`;
-                        html += `<span class="text-txt-muted ml-2 shrink-0">${dur}</span></summary>`;
-                        html += `<div class="px-2.5 py-2 text-[11px] font-mono text-txt-muted whitespace-pre-wrap max-h-48 overflow-y-auto bg-bg">${this.escapeHtml(JSON.stringify({...s, children: undefined}, null, 2).slice(0, 3000))}</div>`;
-                        html += `</details>`;
+                        const name = a['gen_ai.tool.name'] || a['tool.name'] || s.name || s.type || '';
+                        const dur = this.spanDuration(s);
+                        html += `<details class="border border-border-muted rounded"><summary class="px-2 py-1.5 hover:bg-bg-hover cursor-pointer text-[11px] flex items-center justify-between min-w-0">`;
+                        html += `<span class="font-mono truncate min-w-0 flex-1">${esc(name)}</span>`;
+                        if (dur) html += `<span class="text-txt-muted shrink-0 ml-2">${dur}</span>`;
+                        html += `</summary><div class="px-2 py-1.5 text-[10px] font-mono text-txt-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto bg-bg">${esc(JSON.stringify({...s, children: undefined}, null, 2).slice(0, 3000))}</div></details>`;
                     }
                     html += `</div></details>`;
                 }
