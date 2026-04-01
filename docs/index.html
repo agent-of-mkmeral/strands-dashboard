@@ -1465,9 +1465,12 @@
             async awsSigned(method, url, headers, body, creds, region, service) {
                 const urlObj = new URL(url), host = urlObj.hostname, now = new Date();
                 const dateStamp = now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z', shortDate = dateStamp.slice(0, 8);
-                const signedHeaders = 'content-type;host;x-amz-date;x-amz-security-token;x-amz-target';
-                const allHeaders = { ...headers, host, 'x-amz-date': dateStamp, 'x-amz-security-token': creds.sessionToken };
-                const canonicalHeaders = Object.keys(allHeaders).sort().map(k => `${k.toLowerCase()}:${allHeaders[k].trim()}`).join('\n') + '\n';
+                // Normalize all headers to lowercase keys for correct SigV4 canonical header sorting
+                const rawHeaders = { ...headers, host, 'x-amz-date': dateStamp, 'x-amz-security-token': creds.sessionToken };
+                const normalized = {}; Object.entries(rawHeaders).forEach(([k, v]) => { normalized[k.toLowerCase()] = v.trim(); });
+                const sortedKeys = Object.keys(normalized).sort();
+                const signedHeaders = sortedKeys.join(';');
+                const canonicalHeaders = sortedKeys.map(k => `${k}:${normalized[k]}`).join('\n') + '\n';
                 const bodyHash = await this.sha256Hex(body || '');
                 const canonicalRequest = [method, '/', '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
                 const credentialScope = `${shortDate}/${region}/${service}/aws4_request`;
@@ -1477,7 +1480,7 @@
                 const kService = await this.hmacSha256(kRegion, service);
                 const kSigning = await this.hmacSha256(kService, 'aws4_request');
                 const signature = await this.hmacSha256Hex(kSigning, stringToSign);
-                return fetch(url, { method, headers: { ...headers, 'X-Amz-Date': dateStamp, 'X-Amz-Security-Token': creds.sessionToken, Authorization: `AWS4-HMAC-SHA256 Credential=${creds.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}` }, body });
+                return fetch(url, { method, headers: { ...rawHeaders, Authorization: `AWS4-HMAC-SHA256 Credential=${creds.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}` }, body });
             },
             async sha256Hex(msg) { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg)); return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join(''); },
             async hmacSha256(key, msg) { const k = typeof key === 'string' ? new TextEncoder().encode(key) : key; const m = typeof msg === 'string' ? new TextEncoder().encode(msg) : msg; const ck = await crypto.subtle.importKey('raw', k, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return new Uint8Array(await crypto.subtle.sign('HMAC', ck, m)); },
