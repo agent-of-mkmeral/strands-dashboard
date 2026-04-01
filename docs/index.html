@@ -708,7 +708,7 @@
             activityData: { external_events: [], internal_events: [] }, activityFilter: 'all',
             wildPRs: [], wildIssues: [], wildFilter: 'all', wildHtml: '',
             tracesSessions: [], traceDetailHtml: '', tracesCredsStatus: '🔴 No creds', tracesStatus: '',
-            tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '', _credsPromise: null,
+            tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '', _credsPromise: null, _initCryptoPromise: null,
             mentionsRuns: [], mentionsLoading: false, mentionsTriggering: false, mentionsLastCheck: '', mentionsLastStatus: '', mentionsRunDetail: null, mentionsRunLogsHtml: '',
             warnings: [], warningCount: 0,
             issueDetailHtml: '', logsHtml: '', jobDetailHtml: '',
@@ -1324,6 +1324,14 @@
             async loadTraces(silent = false) { this.updateCredsStatus(); },
             async initCryptoKeys() {
                 if (this.cryptoKeyPair && this.publicKeyB64) return;
+                // Dedup: if already initializing, share the same promise (prevents race condition
+                // where init() and refreshTraceCreds() both generate different key pairs concurrently)
+                if (this._initCryptoPromise) return await this._initCryptoPromise;
+                this._initCryptoPromise = this._doInitCryptoKeys();
+                try { await this._initCryptoPromise; } finally { this._initCryptoPromise = null; }
+            },
+            async _doInitCryptoKeys() {
+                if (this.cryptoKeyPair && this.publicKeyB64) return;
                 try {
                     const stored = sessionStorage.getItem('trace_crypto_keys');
                     if (stored) {
@@ -1390,19 +1398,22 @@
             },
             async refreshTraceCreds(manual = false) {
                 try {
-                    // Always init crypto keys first — needed for decrypting cached artifacts
+                    // Always init crypto keys first (dedup'd — safe from race conditions)
                     if (!this.publicKeyB64) await this.initCryptoKeys();
                     if (!manual) { const existing = await this.fetchExistingCredsArtifact(); if (existing) { this.tracesCreds = existing; this.updateCredsStatus(); return this.tracesCreds; } }
                     this.tracesStatus = 'Encrypting & vending credentials...';
-                    const dispatchTime = Date.now();
-                    await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { public_key: this.publicKeyB64 } }) });
+                    // Snapshot existing run IDs BEFORE dispatch — used to identify our new run
+                    const preRes = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=10`);
+                    const knownRunIds = preRes.ok ? ((await preRes.json()).workflow_runs || []).map(r => r.id) : [];
+                    const dispatchRes = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { public_key: this.publicKeyB64 } }) });
+                    if (!dispatchRes.ok && dispatchRes.status !== 204) throw new Error(`Dispatch failed (${dispatchRes.status})`);
                     this.tracesStatus = 'Waiting for creds (~15s)...';
                     await new Promise(r => setTimeout(r, 3000));
-                    const runData = await this.pollForCredsRun(90, dispatchTime);
+                    const runData = await this.pollForCredsRun(90, knownRunIds);
                     if (!runData) throw new Error('Credential vending timed out');
                     this.tracesStatus = 'Downloading credentials...';
                     const creds = await this.downloadCredsArtifact(runData.id);
-                    if (!creds) throw new Error('Failed to download credentials — key mismatch or artifact unavailable');
+                    if (!creds) throw new Error('Failed to download credentials');
                     this.tracesCreds = creds; this.updateCredsStatus(); this.tracesStatus = '';
                     if (this.tracesCredsRefreshTimer) clearInterval(this.tracesCredsRefreshTimer);
                     this.tracesCredsRefreshTimer = setInterval(() => this.refreshTraceCreds(false), 600000);
@@ -1420,20 +1431,19 @@
                     return creds;
                 } catch { return null; }
             },
-            async pollForCredsRun(maxWait = 90, dispatchedAfter = 0) {
+            async pollForCredsRun(maxWait = 90, knownRunIds = []) {
                 const start = Date.now();
-                const cutoff = dispatchedAfter ? dispatchedAfter - 5000 : 0; // 5s buffer for clock skew
+                const known = new Set(knownRunIds);
                 while (Date.now() - start < maxWait * 1000) {
                     try {
-                        const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=5&status=completed`);
+                        const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=10`);
                         if (res.ok) {
-                            const runs = ((await res.json()).workflow_runs || [])
-                                .filter(r => r.conclusion === 'success' && (!cutoff || new Date(r.created_at).getTime() >= cutoff));
-                            if (runs.length > 0) return runs[0];
-                            // Fail fast if run failed
-                            const failed = ((await (await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=3`)).json()).workflow_runs || [])
-                                .find(r => r.conclusion === 'failure' && (!cutoff || new Date(r.created_at).getTime() >= cutoff));
-                            if (failed) { console.error('Creds workflow failed:', failed.html_url); return null; }
+                            const allRuns = (await res.json()).workflow_runs || [];
+                            // Only consider runs that didn't exist before our dispatch
+                            const newSuccess = allRuns.find(r => r.conclusion === 'success' && !known.has(r.id));
+                            if (newSuccess) return newSuccess;
+                            const newFailure = allRuns.find(r => r.conclusion === 'failure' && !known.has(r.id));
+                            if (newFailure) { console.error('Creds workflow failed:', newFailure.html_url); return null; }
                         }
                     } catch {}
                     await new Promise(r => setTimeout(r, 3000));
