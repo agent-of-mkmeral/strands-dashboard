@@ -1577,7 +1577,6 @@
                 } catch (e) { this.traceDetailHtml = `<p class="text-danger text-center py-8">${e.message}</p>`; }
             },
             // Normalize OTEL attributes: handle both flat objects and arrays [{key, value: {stringValue/intValue/...}}]
-            // Normalize OTEL attributes: handle both flat objects and arrays [{key, value: {stringValue/intValue/...}}]
             normalizeAttrs(attrs) {
                 if (!attrs) return {};
                 if (Array.isArray(attrs)) {
@@ -2253,6 +2252,7 @@
                                 }
                                 html += `</div></details>`;
                             }
+                        }
                     }
                     html += `</div>`;
                 }
