@@ -708,7 +708,7 @@
             activityData: { external_events: [], internal_events: [] }, activityFilter: 'all',
             wildPRs: [], wildIssues: [], wildFilter: 'all', wildHtml: '',
             tracesSessions: [], traceDetailHtml: '', tracesCredsStatus: '🔴 No creds', tracesStatus: '',
-            tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '',
+            tracesCreds: null, tracesCredsRefreshTimer: null, cryptoKeyPair: null, publicKeyB64: '', _credsPromise: null,
             mentionsRuns: [], mentionsLoading: false, mentionsTriggering: false, mentionsLastCheck: '', mentionsLastStatus: '', mentionsRunDetail: null, mentionsRunLogsHtml: '',
             warnings: [], warningCount: 0,
             issueDetailHtml: '', logsHtml: '', jobDetailHtml: '',
@@ -1352,23 +1352,28 @@
             },
             async decryptCreds(enc) {
                 if (!this.cryptoKeyPair) throw new Error('No crypto keys — refresh the page');
-                // Decrypt AES key with RSA-OAEP private key
-                const aesKeyBuf = await crypto.subtle.decrypt(
-                    { name: 'RSA-OAEP' },
-                    this.cryptoKeyPair.privateKey,
-                    Uint8Array.from(atob(enc.ek), c => c.charCodeAt(0))
-                );
-                // Import AES-256-GCM key
-                const aesKey = await crypto.subtle.importKey('raw', aesKeyBuf, 'AES-GCM', false, ['decrypt']);
-                // Decrypt data (Web Crypto expects auth tag appended to ciphertext)
-                const ivBuf = Uint8Array.from(atob(enc.iv), c => c.charCodeAt(0));
-                const encData = Uint8Array.from(atob(enc.d), c => c.charCodeAt(0));
-                const tagBuf = Uint8Array.from(atob(enc.tag), c => c.charCodeAt(0));
-                const combined = new Uint8Array(encData.length + tagBuf.length);
-                combined.set(encData);
-                combined.set(tagBuf, encData.length);
-                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBuf }, aesKey, combined);
-                return JSON.parse(new TextDecoder().decode(decrypted));
+                try {
+                    // Decrypt AES key with RSA-OAEP private key
+                    const aesKeyBuf = await crypto.subtle.decrypt(
+                        { name: 'RSA-OAEP' },
+                        this.cryptoKeyPair.privateKey,
+                        Uint8Array.from(atob(enc.ek), c => c.charCodeAt(0))
+                    );
+                    // Import AES-256-GCM key
+                    const aesKey = await crypto.subtle.importKey('raw', aesKeyBuf, 'AES-GCM', false, ['decrypt']);
+                    // Decrypt data (Web Crypto expects auth tag appended to ciphertext)
+                    const ivBuf = Uint8Array.from(atob(enc.iv), c => c.charCodeAt(0));
+                    const encData = Uint8Array.from(atob(enc.d), c => c.charCodeAt(0));
+                    const tagBuf = Uint8Array.from(atob(enc.tag), c => c.charCodeAt(0));
+                    const combined = new Uint8Array(encData.length + tagBuf.length);
+                    combined.set(encData);
+                    combined.set(tagBuf, encData.length);
+                    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBuf }, aesKey, combined);
+                    return JSON.parse(new TextDecoder().decode(decrypted));
+                } catch (e) {
+                    console.warn('Decryption failed (key mismatch — artifact encrypted by different session):', e.message || e);
+                    return null;
+                }
             },
             updateCredsStatus() {
                 if (!this.tracesCreds) { this.tracesCredsStatus = '🔴 No creds'; return; }
@@ -1377,20 +1382,27 @@
                 else if (remaining < 120) this.tracesCredsStatus = `🟡 ${Math.round(remaining / 60)}m left`;
                 else this.tracesCredsStatus = `🟢🔒 ${Math.round(remaining / 60)}m left`;
             },
-            async ensureCreds() { if (this.tracesCreds) { const r = (new Date(this.tracesCreds.expiration) - Date.now()) / 1000; if (r > 120) return this.tracesCreds; } return await this.refreshTraceCreds(false); },
+            async ensureCreds() {
+                if (this.tracesCreds) { const r = (new Date(this.tracesCreds.expiration) - Date.now()) / 1000; if (r > 120) return this.tracesCreds; }
+                if (this._credsPromise) return await this._credsPromise;
+                this._credsPromise = this.refreshTraceCreds(false);
+                try { return await this._credsPromise; } finally { this._credsPromise = null; }
+            },
             async refreshTraceCreds(manual = false) {
                 try {
-                    if (!manual) { const existing = await this.fetchExistingCredsArtifact(); if (existing) { this.tracesCreds = existing; this.updateCredsStatus(); return this.tracesCreds; } }
+                    // Always init crypto keys first — needed for decrypting cached artifacts
                     if (!this.publicKeyB64) await this.initCryptoKeys();
+                    if (!manual) { const existing = await this.fetchExistingCredsArtifact(); if (existing) { this.tracesCreds = existing; this.updateCredsStatus(); return this.tracesCreds; } }
                     this.tracesStatus = 'Encrypting & vending credentials...';
+                    const dispatchTime = Date.now();
                     await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { public_key: this.publicKeyB64 } }) });
                     this.tracesStatus = 'Waiting for creds (~15s)...';
                     await new Promise(r => setTimeout(r, 3000));
-                    const runData = await this.pollForCredsRun();
+                    const runData = await this.pollForCredsRun(90, dispatchTime);
                     if (!runData) throw new Error('Credential vending timed out');
                     this.tracesStatus = 'Downloading credentials...';
                     const creds = await this.downloadCredsArtifact(runData.id);
-                    if (!creds) throw new Error('Failed to download credentials');
+                    if (!creds) throw new Error('Failed to download credentials — key mismatch or artifact unavailable');
                     this.tracesCreds = creds; this.updateCredsStatus(); this.tracesStatus = '';
                     if (this.tracesCredsRefreshTimer) clearInterval(this.tracesCredsRefreshTimer);
                     this.tracesCredsRefreshTimer = setInterval(() => this.refreshTraceCreds(false), 600000);
@@ -1408,14 +1420,23 @@
                     return creds;
                 } catch { return null; }
             },
-            async pollForCredsRun(maxWait = 90) {
+            async pollForCredsRun(maxWait = 90, dispatchedAfter = 0) {
                 const start = Date.now();
+                const cutoff = dispatchedAfter ? dispatchedAfter - 5000 : 0; // 5s buffer for clock skew
                 while (Date.now() - start < maxWait * 1000) {
                     try {
                         const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=5&status=completed`);
-                        if (res.ok) { const runs = ((await res.json()).workflow_runs || []).filter(r => (Date.now() - new Date(r.created_at).getTime()) < (maxWait + 60) * 1000); const s = runs.find(r => r.conclusion === 'success'); if (s) return s; }
+                        if (res.ok) {
+                            const runs = ((await res.json()).workflow_runs || [])
+                                .filter(r => r.conclusion === 'success' && (!cutoff || new Date(r.created_at).getTime() >= cutoff));
+                            if (runs.length > 0) return runs[0];
+                            // Fail fast if run failed
+                            const failed = ((await (await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/creds.yml/runs?per_page=3`)).json()).workflow_runs || [])
+                                .find(r => r.conclusion === 'failure' && (!cutoff || new Date(r.created_at).getTime() >= cutoff));
+                            if (failed) { console.error('Creds workflow failed:', failed.html_url); return null; }
+                        }
                     } catch {}
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 3000));
                 }
                 return null;
             },
