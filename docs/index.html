@@ -935,6 +935,19 @@
             },
             renderIssues() { /* reactive via Alpine */ },
 
+            async fetchAllComments(repo, num) {
+                let all = [], page = 1, hasMore = true;
+                while (hasMore) {
+                    const res = await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments?per_page=100&page=${page}`);
+                    if (!res.ok) throw new Error(`Comments API: ${res.status}`);
+                    const items = await res.json();
+                    all = all.concat(items);
+                    hasMore = items.length === 100;
+                    page++;
+                }
+                return all;
+            },
+
             async openIssueDetail(num) {
                 this.currentIssue = this.issues.find(i => i.number === num);
                 if (!this.currentIssue) {
@@ -942,8 +955,7 @@
                 if (!this.currentIssue) { this.showToast(`Issue #${num} not found`); return; }
                 this.issueDetailHtml = '<div class="flex justify-center py-8"><div class="spinner"></div></div>';
                 try {
-                    const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/issues/${num}/comments`);
-                    this.currentIssue.comments_data = await res.json();
+                    this.currentIssue.comments_data = await this.fetchAllComments(this.config.github.repo, num);
                     this.renderIssueDetailHtml();
                 } catch (e) { this.issueDetailHtml = `<p class="text-danger">${e.message}</p>`; }
             },
@@ -954,8 +966,7 @@
                     if (!res.ok) { this.showToast(`Issue #${num} not found`); return; }
                     const issue = await res.json();
                     issue._crossRepo = r;
-                    const commentsRes = await this.ghFetch(`https://api.github.com/repos/${r}/issues/${num}/comments`);
-                    issue.comments_data = await commentsRes.json();
+                    issue.comments_data = await this.fetchAllComments(r, num);
                     this.issueModalTitle = `${r} #${num}`;
                     this.issueModalHtml = this.buildIssueHtml(issue, r);
                     this.showIssueModal = true;
@@ -993,8 +1004,7 @@
                 try {
                     await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`, { method: 'POST', body: JSON.stringify({ body: text }) });
                     this.showToast('Sent!');
-                    const res = await this.ghFetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`);
-                    if (this.currentIssue?.number === num) { this.currentIssue.comments_data = await res.json(); this.renderIssueDetailHtml(); }
+                    if (this.currentIssue?.number === num) { this.currentIssue.comments_data = await this.fetchAllComments(repo, num); this.renderIssueDetailHtml(); }
                 } catch (e) { if (el) el.value = text; this.showToast('Error'); }
                 finally { this._addingComment = false; }
             },
