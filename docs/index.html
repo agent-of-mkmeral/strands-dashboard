@@ -18,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -2527,9 +2527,24 @@
 <script>
         // Initialize Lucide icons after Alpine hydration
         document.addEventListener('alpine:initialized', () => { if (window.lucide) lucide.createIcons(); });
-        // Also re-init on any Alpine morph/update 
-        const _lucideObserver = new MutationObserver(() => { if (window.lucide) lucide.createIcons(); });
-        _lucideObserver.observe(document.body, { childList: true, subtree: true });
+        // Re-init on Alpine DOM updates — debounced to prevent infinite loop.
+        // lucide.createIcons() replaces <i data-lucide> → <svg>, which itself is a DOM
+        // mutation.  Without debounce + disconnect, the observer re-triggers endlessly.
+        (function() {
+            let _pending = null;
+            const _obs = new MutationObserver(() => {
+                if (_pending) return;
+                _pending = requestAnimationFrame(() => {
+                    _pending = null;
+                    if (!window.lucide) return;
+                    _obs.disconnect();
+                    try { lucide.createIcons(); } catch(e) {}
+                    _obs.observe(document.body, { childList: true, subtree: true });
+                });
+            });
+            // Start observing only after first paint
+            requestAnimationFrame(() => _obs.observe(document.body, { childList: true, subtree: true }));
+        })();
 </script>
 </body>
 </html>
