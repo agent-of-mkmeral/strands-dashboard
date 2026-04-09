@@ -269,6 +269,13 @@
                                 </div>
                             </template>
                             <div x-show="displayActions.length === 0" class="text-center py-8 text-txt-muted text-sm">No runs found</div>
+                            <div x-show="actionsHasMore && displayActions.length > 0" class="px-4 py-3 border-b border-border-muted">
+                                <button @click="loadMoreActions()" :disabled="actionsLoadingMore" class="w-full text-xs text-accent hover:text-accent-light font-medium py-2 rounded-md hover:bg-bg-hover transition-colors disabled:opacity-50">
+                                    <span x-show="!actionsLoadingMore">Load older runs ↓</span>
+                                    <span x-show="actionsLoadingMore" class="flex items-center justify-center gap-2"><div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Loading...</span>
+                                </button>
+                            </div>
+                            <div x-show="!actionsHasMore && actions.length > 100" class="text-center py-2 text-[10px] text-txt-muted">All <span x-text="actions.length"></span> runs loaded</div>
                         </div>
                     </div>
                     <!-- Logs (desktop) -->
@@ -710,7 +717,7 @@
             },
             loading: { issues: false, actions: false, project: false, traces: false },
             pagesLoaded: {},
-            issues: [], actions: [], scheduleData: { jobs: {} },
+            issues: [], actions: [], actionsHasMore: false, actionsPage: 1, actionsLoadingMore: false, scheduleData: { jobs: {} },
             projectColumns: {},
             currentIssue: null, currentAction: null, currentTraceSession: null, selectedJob: null,
             issueFilterState: 'all', filteredIssueNum: null,
@@ -1027,24 +1034,38 @@
             async loadActions(silent = false) {
                 if (!silent) this.loading.actions = true;
                 try {
-                    let all = [], pg = 1, more = true;
-                    while (more) {
-                        const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/${this.config.github.workflow}/runs?per_page=100&page=${pg}`);
-                        if (!res.ok && !silent) throw new Error(`API: ${res.status}`);
-                        const items = (await res.json()).workflow_runs || [];
-                        all = all.concat(items); more = items.length === 100; pg++;
-                    }
-                    // Pre-detect likely-skipped runs based on duration
-                    // Skipped runs (self-trigger protection) complete in <30s, real agent runs take 1-15min
-                    for (const a of all) {
-                        if (a.status === 'completed' && a.run_started_at && a.updated_at) {
-                            const dur = new Date(a.updated_at) - new Date(a.run_started_at);
-                            if (dur < 30000 && a.conclusion === 'success') a._skipped = true;
-                        }
-                    }
-                    this.actions = all;
+                    const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/${this.config.github.workflow}/runs?per_page=100&page=1`);
+                    if (!res.ok && !silent) throw new Error(`API: ${res.status}`);
+                    const items = (await res.json()).workflow_runs || [];
+                    this._markSkippedRuns(items);
+                    this.actions = items;
+                    this.actionsPage = 1;
+                    this.actionsHasMore = items.length === 100;
                 } catch (e) { if (!silent) this.showToast('Error: ' + e.message); }
                 if (!silent) this.loading.actions = false;
+            },
+            async loadMoreActions() {
+                if (this.actionsLoadingMore || !this.actionsHasMore) return;
+                this.actionsLoadingMore = true;
+                try {
+                    const nextPage = this.actionsPage + 1;
+                    const res = await this.ghFetch(`https://api.github.com/repos/${this.config.github.repo}/actions/workflows/${this.config.github.workflow}/runs?per_page=100&page=${nextPage}`);
+                    if (!res.ok) throw new Error(`API: ${res.status}`);
+                    const items = (await res.json()).workflow_runs || [];
+                    this._markSkippedRuns(items);
+                    this.actions = this.actions.concat(items);
+                    this.actionsPage = nextPage;
+                    this.actionsHasMore = items.length === 100;
+                } catch (e) { this.showToast('Error loading more: ' + e.message); }
+                this.actionsLoadingMore = false;
+            },
+            _markSkippedRuns(runs) {
+                for (const a of runs) {
+                    if (a.status === 'completed' && a.run_started_at && a.updated_at) {
+                        const dur = new Date(a.updated_at) - new Date(a.run_started_at);
+                        if (dur < 30000 && a.conclusion === 'success') a._skipped = true;
+                    }
+                }
             },
             renderActions() { /* reactive via Alpine */ },
             async selectAction(id) {
