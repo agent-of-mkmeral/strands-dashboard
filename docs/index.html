@@ -157,7 +157,7 @@
                     <template x-for="w in warnings" :key="w.title">
                         <div class="flex items-start gap-3 p-3 rounded-lg border"
                             :class="w.level === 'critical' ? 'bg-danger-muted border-danger/20' : w.level === 'warning' ? 'bg-warning-muted border-warning/20' : 'bg-accent-subtle border-accent/10'">
-                            <span x-text="w.icon" class="text-base mt-0.5"></span>
+                            <span x-html="w.icon" class="text-base mt-0.5"></span>
                             <div class="min-w-0">
                                 <div class="text-sm font-semibold" x-text="w.title"></div>
                                 <div class="text-xs text-txt-secondary mt-0.5" x-text="w.description"></div>
@@ -304,7 +304,7 @@
                                         <span x-show="action._skipped" class="text-[10px] text-txt-muted shrink-0"><i data-lucide="skip-forward" style="width:10px;height:10px"></i></span>
                                     </div>
                                     <div class="text-[11px] text-txt-muted mt-0.5">
-                                        <span class="bg-bg-hover rounded px-1 py-0.5 text-[10px]" x-text="getEventIcon(action.event) + ' ' + formatEventName(action.event)"></span>
+                                        <span class="bg-bg-hover rounded px-1 py-0.5 text-[10px]" x-html="getEventIcon(action.event) + ' ' + escapeHtml(formatEventName(action.event))"></span>
                                         · #<span x-text="action.run_number"></span> · <span x-text="formatDate(action.created_at)"></span>
                                     </div>
                                 </div>
@@ -370,7 +370,7 @@
                         <template x-for="evt in filteredActivityEvents" :key="evt.created_at + evt.type">
                             <div @click="evt.url && window.open(evt.url, '_blank')" class="px-3 py-2.5 border-b border-border-muted last:border-0 hover:bg-bg-hover transition-colors" :class="evt.url ? 'cursor-pointer' : ''" :style="getActivityBgStyle(evt.repo)">
                                 <div class="flex items-center gap-2">
-                                    <div class="text-[13px] font-medium flex-1" x-text="getActivityIcon(evt.type) + ' ' + (evt.title || evt.type)"></div>
+                                    <div class="text-[13px] font-medium flex-1" x-html="getActivityIcon(evt.type) + ' ' + escapeHtml(evt.title || evt.type)"></div>
                                     <span class="text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
                                         :class="getActivityCategory(evt.repo) === 'own' ? 'text-accent-light bg-accent-muted' : getActivityCategory(evt.repo) === 'strands' ? 'text-success bg-success-muted' : 'text-warning bg-warning-muted'"
                                         x-text="getActivityCategory(evt.repo) === 'own' ? 'Own' : getActivityCategory(evt.repo) === 'strands' ? 'Strands' : 'Other'"></span>
