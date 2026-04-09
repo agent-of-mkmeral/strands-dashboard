@@ -10,14 +10,15 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0b">
     <meta name="description" content="Strands Dashboard - Agent monitoring & control">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg width='290' height='463' viewBox='0 0 290 463' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M97.29 52.79C85.07 49.17 72.22 56.14 68.6 68.36C64.98 80.58 71.95 93.43 84.17 97.05L235.12 139.78C245.22 142.77 246.36 156.63 236.87 161.23L32.55 260.29C-14.94 283.32-9.16 352.74 41.48 367.59L189.55 411.01 190.13 411.17C202.18 414.38 214.67 407.4 218.2 395.36C221.78 383.12 214.77 370.3 202.54 366.71L54.47 323.29C44.34 320.32 43.19 306.44 52.69 301.83L257.01 202.77C304.43 179.78 298.76 110.48 248.23 95.51L97.29 52.79Z' fill='%23555'/%3E%3Cpath d='M259.15.98C271.39-2.57 284.2 4.47 287.75 16.71C291.31 28.95 284.27 41.76 272.03 45.31L71.17 103.67C40.71 112.52 37.2 154.26 65.75 168.08L241.34 253.09C307.87 285.3 299.79 382.55 228.86 403.34L30.4 461.5C18.17 465.09 5.35 458.08 1.76 445.84C-1.82 433.61 5.19 420.79 17.42 417.2L215.88 359.04C246.28 350.13 249.74 308.45 221.23 294.65L45.63 209.64C-20.98 177.39-12.78 79.99 58.29 59.34L259.15.98Z' fill='%2300FF77'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg width='290' height='463' viewBox='0 0 290 463' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M97.29 52.79C85.07 49.17 72.22 56.14 68.6 68.36C64.98 80.58 71.95 93.43 84.17 97.05L235.12 139.78C245.22 142.77 246.36 156.63 236.87 161.23L32.55 260.29C-14.94 283.32-9.16 352.74 41.48 367.59L189.55 411.01 190.13 411.17C202.18 414.38 214.67 407.4 218.2 395.36C221.78 383.12 214.77 370.3 202.54 366.71L54.47 323.29C44.34 320.32 43.19 306.44 52.69 301.83L257.01 202.77C304.43 179.78 298.76 110.48 248.23 95.51L97.29 52.79Z' fill='%23555'/%3E%3Cpath d='M259.15.98C271.39-2.57 284.2 4.47 287.75 16.71C291.31 28.95 284.27 41.76 272.03 45.31L71.17 103.67C40.71 112.52 37.2 154.26 65.75 168.08L241.34 253.09C307.87 285.3 299.79 382.55 228.86 403.34L30.4 461.5C18.17 465.09 5.35 458.08 1.76 445.84C-1.82 433.61 5.19 420.79 17.42 417.2L215.88 359.04C246.28 350.13 249.74 308.45 221.23 294.65L45.63 209.64C-20.98 177.39-12.78 79.99 58.29 59.34L259.15.98Z' fill='%2300FF77'/%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,6 +76,28 @@
         .ptr-indicator .ptr-spinner.spinning { animation: ptr-spin 0.6s linear infinite; }
         [x-cloak] { display: none !important; }
     </style>
+    <style>
+      
+      .inline-icon { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; }
+      .inline-icon svg { width: 100%; height: 100%; }
+    
+      .lucide-icon { display: inline-flex; align-items: center; justify-content: center; }
+      .lucide-icon svg { width: 1em; height: 1em; stroke-width: 2; }
+      .nav-icon svg { width: 16px; height: 16px; }
+      .nav-icon-lg svg { width: 20px; height: 20px; }
+    </style>
+    <script>
+      // Icon helper: returns inline SVG string for a Lucide icon
+      function lucideIcon(name, size, cls) {
+        size = size || 16; cls = cls || '';
+        return '<span class="lucide-icon ' + cls + '" style="width:' + size + 'px;height:' + size + 'px"><i data-lucide="' + name + '"></i></span>';
+      }
+      // Strands logo SVG (inline, for branding)
+      function strandsLogo(size) {
+        size = size || 20;
+        return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 290 463" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M97.29 52.79C85.07 49.17 72.22 56.14 68.6 68.36C64.98 80.58 71.95 93.43 84.17 97.05L235.12 139.78C245.22 142.77 246.36 156.63 236.87 161.23L32.55 260.29C-14.94 283.32-9.16 352.74 41.48 367.59L189.55 411.01 190.13 411.17C202.18 414.38 214.67 407.4 218.2 395.36C221.78 383.12 214.77 370.3 202.54 366.71L54.47 323.29C44.34 320.32 43.19 306.44 52.69 301.83L257.01 202.77C304.43 179.78 298.76 110.48 248.23 95.51L97.29 52.79Z" fill="currentColor" opacity="0.4"/><path d="M259.15.98C271.39-2.57 284.2 4.47 287.75 16.71C291.31 28.95 284.27 41.76 272.03 45.31L71.17 103.67C40.71 112.52 37.2 154.26 65.75 168.08L241.34 253.09C307.87 285.3 299.79 382.55 228.86 403.34L30.4 461.5C18.17 465.09 5.35 458.08 1.76 445.84C-1.82 433.61 5.19 420.79 17.42 417.2L215.88 359.04C246.28 350.13 249.74 308.45 221.23 294.65L45.63 209.64C-20.98 177.39-12.78 79.99 58.29 59.34L259.15.98Z" fill="#00FF77"/></svg>';
+      }
+    </script>
 </head>
 <body class="h-screen overflow-hidden" x-data="app()" x-init="init()">
 
@@ -100,14 +123,14 @@
         <!-- Desktop Sidebar (hidden on mobile) -->
         <aside class="hidden lg:flex flex-col w-56 border-r border-border bg-bg shrink-0">
             <div class="p-4 border-b border-border">
-                <h1 class="text-sm font-bold text-txt flex items-center gap-2">🧬 Strands</h1>
+                <h1 class="text-sm font-bold text-txt flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 290 463" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M97.29 52.79C85.07 49.17 72.22 56.14 68.6 68.36C64.98 80.58 71.95 93.43 84.17 97.05L235.12 139.78C245.22 142.77 246.36 156.63 236.87 161.23L32.55 260.29C-14.94 283.32-9.16 352.74 41.48 367.59L189.55 411.01 190.13 411.17C202.18 414.38 214.67 407.4 218.2 395.36C221.78 383.12 214.77 370.3 202.54 366.71L54.47 323.29C44.34 320.32 43.19 306.44 52.69 301.83L257.01 202.77C304.43 179.78 298.76 110.48 248.23 95.51L97.29 52.79Z" fill="currentColor" opacity="0.4"/><path d="M259.15.98C271.39-2.57 284.2 4.47 287.75 16.71C291.31 28.95 284.27 41.76 272.03 45.31L71.17 103.67C40.71 112.52 37.2 154.26 65.75 168.08L241.34 253.09C307.87 285.3 299.79 382.55 228.86 403.34L30.4 461.5C18.17 465.09 5.35 458.08 1.76 445.84C-1.82 433.61 5.19 420.79 17.42 417.2L215.88 359.04C246.28 350.13 249.74 308.45 221.23 294.65L45.63 209.64C-20.98 177.39-12.78 79.99 58.29 59.34L259.15.98Z" fill="#00FF77"/></svg> Strands</h1>
                 <p class="text-[11px] text-txt-muted mt-0.5" x-text="config.github.repo || 'Not configured'"></p>
             </div>
             <nav class="flex-1 overflow-y-auto py-2">
                 <template x-for="item in sidebarItems" :key="item.id">
                     <button @click="navigate(item.id)" class="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] font-medium transition-colors relative"
                         :class="page === item.id ? 'text-accent bg-accent-subtle' : 'text-txt-secondary hover:text-txt hover:bg-bg-hover'">
-                        <span x-text="item.icon" class="text-base w-5 text-center"></span>
+                        <span class="w-5 text-center nav-icon"><i :data-lucide="item.icon"></i></span>
                         <span x-text="item.label"></span>
                         <span x-show="item.id === 'home' && warningCount > 0" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-danger text-[10px] font-bold flex items-center justify-center text-white" x-text="warningCount"></span>
                         <span x-show="item.id === 'runs' && runningCount > 0" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-white live-pulse" x-text="runningCount"></span>
@@ -167,7 +190,7 @@
                         <div class="text-[11px] text-txt-muted">Failed</div>
                     </div>
                     <div @click="navigate('traces')" class="bg-bg-card border border-border rounded-lg p-3 cursor-pointer hover:bg-bg-hover transition-colors">
-                        <div class="text-xl">📈</div>
+                        <div><i data-lucide="trending-up" style="width:20px;height:20px;color:var(--accent)"></i></div>
                         <div class="text-[11px] text-txt-muted">Traces</div>
                     </div>
                 </div>
@@ -230,7 +253,7 @@
                                     <div class="text-[13px] font-medium mb-1"><span class="text-txt-muted">#<span x-text="issue.number"></span></span> <span x-text="truncate(issue.title, 60)"></span></div>
                                     <div class="flex items-center gap-2 text-[11px] text-txt-muted">
                                         <span class="px-1.5 py-0.5 rounded" :class="issue.state === 'open' ? 'text-success bg-success-muted' : 'text-txt-muted bg-bg-hover'" x-text="issue.state === 'open' ? '● Open' : '○ Closed'"></span>
-                                        <span x-text="'💬 ' + issue.comments"></span>
+                                        <span x-html="'<i data-lucide=&quot;message-circle&quot; class=&quot;inline-icon&quot;></i> ' + issue.comments"></span>
                                         <span x-text="formatDate(issue.created_at)"></span>
                                     </div>
                                 </div>
@@ -241,7 +264,7 @@
                     <!-- Detail (desktop) -->
                     <div x-show="!isMobile()" class="hidden lg:block flex-1 overflow-y-auto p-4">
                         <div x-show="!currentIssue" class="text-center py-16 text-txt-muted text-sm">
-                            <div class="text-2xl mb-2">📋</div>Select an issue to view details
+                            <div class="mb-2"><i data-lucide="circle-dot" style="width:24px;height:24px;color:var(--accent)"></i></div>Select an issue to view details
                         </div>
                         <div x-show="currentIssue" x-html="issueDetailHtml"></div>
                     </div>
@@ -260,7 +283,7 @@
                     <div class="p-4" x-html="logsHtml"></div>
                 </div>
                 <div class="flex items-center gap-2 p-3 border-b border-border">
-                    <span class="text-sm font-semibold">⚡ Runs</span>
+                    <span class="text-sm font-semibold flex items-center gap-1.5"><i data-lucide="play" style="width:14px;height:14px"></i> Runs</span>
                     <span x-show="filteredIssueNum !== null" @click="filteredIssueNum = null; renderActions()" class="text-[11px] text-accent bg-accent-muted px-2 py-0.5 rounded-full cursor-pointer">
                         Issue #<span x-text="filteredIssueNum"></span> ✕
                     </span>
@@ -278,7 +301,7 @@
                                         <span class="w-2 h-2 rounded-full shrink-0" :class="(action.status === 'in_progress' || action.status === 'queued') ? 'bg-warning live-pulse' : action._skipped ? 'bg-txt-muted opacity-40' : action.conclusion === 'success' ? 'bg-success' : action.conclusion === 'cancelled' ? 'bg-warning' : 'bg-danger'"></span>
                                         <span class="truncate" x-text="truncate(action.display_title || `#${action.run_number}`, 55)"></span>
                                         <span x-show="action.status === 'in_progress'" class="text-[10px] font-bold text-accent shrink-0 live-pulse">LIVE</span>
-                                        <span x-show="action._skipped" class="text-[10px] text-txt-muted shrink-0">⏭️</span>
+                                        <span x-show="action._skipped" class="text-[10px] text-txt-muted shrink-0"><i data-lucide="skip-forward" style="width:10px;height:10px"></i></span>
                                     </div>
                                     <div class="text-[11px] text-txt-muted mt-0.5">
                                         <span class="bg-bg-hover rounded px-1 py-0.5 text-[10px]" x-text="getEventIcon(action.event) + ' ' + formatEventName(action.event)"></span>
@@ -310,10 +333,10 @@
             <div x-show="page === 'activity' || page === 'wild' || page === 'traces' || page === 'mentions'" x-cloak class="flex-1 flex flex-col overflow-hidden animate-in">
                 <!-- Sub-tabs (mobile only, desktop uses sidebar) -->
                 <div class="flex lg:hidden items-center gap-1 p-3 border-b border-border">
-                    <button @click="navigate('activity')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'activity' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📊 Activity</button>
-                    <button @click="navigate('wild')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'wild' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">🌍 Wild</button>
-                    <button @click="navigate('traces')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'traces' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📈 Traces</button>
-                    <button @click="navigate('mentions')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'mentions' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📣 Mentions</button>
+                    <button @click="navigate('activity')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'activity' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="activity" class="inline-icon"></i> Activity</button>
+                    <button @click="navigate('wild')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'wild' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="globe" class="inline-icon"></i> Wild</button>
+                    <button @click="navigate('traces')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'traces' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="scan-search" class="inline-icon"></i> Traces</button>
+                    <button @click="navigate('mentions')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'mentions' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="at-sign" class="inline-icon"></i> Mentions</button>
                     <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
 
@@ -325,7 +348,7 @@
                             <div><div class="text-[11px] text-txt-muted">External</div><div class="text-2xl font-bold" x-text="activityData.external_events?.length || 0"></div></div>
                             <div><div class="text-[11px] text-txt-muted">Limit</div><div class="text-2xl font-bold">30</div></div>
                             <div><div class="text-[11px] text-txt-muted">Remaining</div><div class="text-2xl font-bold" x-text="Math.max(0, 30 - (activityData.external_events?.length || 0))"></div></div>
-                            <div><div class="text-[11px] text-txt-muted">Status</div><div class="text-lg font-bold" x-text="(activityData.external_events?.length || 0) >= 30 ? '🛑' : '✅'" :class="(activityData.external_events?.length || 0) >= 30 ? 'text-danger' : 'text-success'"></div></div>
+                            <div><div class="text-[11px] text-txt-muted">Status</div><div class="text-lg font-bold" x-html="(activityData.external_events?.length || 0) >= 30 ? '<i data-lucide=&quot;octagon&quot; class=&quot;inline-icon&quot;></i>' : '<i data-lucide=&quot;check-circle&quot; class=&quot;inline-icon&quot;></i>'" :class="(activityData.external_events?.length || 0) >= 30 ? 'text-danger' : 'text-success'"></div></div>
                         </div>
                         <div class="h-1 bg-border rounded-full overflow-hidden">
                             <div class="h-full rounded-full transition-all" :class="throttlePercent >= 100 ? 'bg-danger' : throttlePercent >= 80 ? 'bg-warning' : 'bg-accent'" :style="`width: ${Math.min(100, throttlePercent)}%`"></div>
@@ -334,7 +357,7 @@
                     <div class="flex items-center gap-1 mb-3 flex-wrap">
                         <template x-for="f in ['all','external','internal']" :key="f">
                             <button @click="activityFilter = f" class="text-xs px-3 py-1.5 rounded-md font-medium" :class="activityFilter === f ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">
-                                <span x-text="f === 'external' ? '🌐 External' : f === 'internal' ? '🏠 Internal' : 'All'"></span>
+                                <span x-text="f === 'external' ? 'External' : f === 'internal' ? 'Internal' : 'All'"></span>
                             </button>
                         </template>
                         <div class="ml-auto flex items-center gap-2 text-[10px] text-txt-muted">
@@ -369,7 +392,7 @@
                     </div>
                     <div class="flex gap-1 mb-3">
                         <template x-for="f in ['all','prs','issues']" :key="f">
-                            <button @click="wildFilter = f" class="text-xs px-3 py-1.5 rounded-md font-medium" :class="wildFilter === f ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'" x-text="f === 'prs' ? '🔀 PRs' : f === 'issues' ? '🎫 Issues' : 'All'"></button>
+                            <button @click="wildFilter = f" class="text-xs px-3 py-1.5 rounded-md font-medium" :class="wildFilter === f ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'" x-text="f === 'prs' ? 'PRs' : f === 'issues' ? 'Issues' : 'All'"></button>
                         </template>
                     </div>
                     <div x-html="wildHtml"></div>
@@ -410,12 +433,12 @@
                                 </div>
                             </template>
                             <div x-show="tracesSessions.length === 0" class="text-center py-8 text-txt-muted text-sm">
-                                <div class="text-2xl mb-2">📊</div>Click "Load" to fetch sessions
+                                <div class="mb-2"><i data-lucide="scan-search" style="width:24px;height:24px;color:var(--accent)"></i></div>Click "Load" to fetch sessions
                             </div>
                         </div>
                         <!-- Desktop detail panel -->
                         <div x-show="!isMobile()" class="hidden lg:block flex-1 overflow-y-auto p-4">
-                            <div x-show="!currentTraceSession" class="text-center py-16 text-txt-muted text-sm"><div class="text-2xl mb-2">🔍</div>Select a session</div>
+                            <div x-show="!currentTraceSession" class="text-center py-16 text-txt-muted text-sm"><div class="mb-2"><i data-lucide="search" style="width:24px;height:24px;color:var(--accent)"></i></div>Select a session</div>
                             <div x-show="currentTraceSession" x-html="traceDetailHtml"></div>
                         </div>
                     </div>
@@ -426,11 +449,11 @@
                 <div x-show="page === 'mentions'" class="flex-1 overflow-y-auto p-4">
                     <div class="flex items-center justify-between mb-4">
                         <div>
-                            <h3 class="text-sm font-semibold">📣 Mentions</h3>
+                            <h3 class="text-sm font-semibold flex items-center gap-1.5"><i data-lucide="at-sign" style="width:14px;height:14px"></i> Mentions</h3>
                             <p class="text-[11px] text-txt-muted mt-0.5">@agent-of-mkmeral mention polling · Hourly (8am–10pm UTC)</p>
                         </div>
                         <button @click="triggerMentionsCheck()" class="text-xs font-medium px-4 py-2 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors flex items-center gap-1.5" :disabled="mentionsTriggering">
-                            <span x-show="!mentionsTriggering">🔍 Check Now</span>
+                            <span x-show="!mentionsTriggering"><i data-lucide="search" class="inline-icon"></i> Check Now</span>
                             <span x-show="mentionsTriggering" class="flex items-center gap-1"><span class="spinner" style="width:14px;height:14px;border-width:1.5px"></span> Triggering...</span>
                         </button>
                     </div>
@@ -475,13 +498,13 @@
                                 <div class="flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full shrink-0" :class="(run.status === 'in_progress' || run.status === 'queued') ? 'bg-warning live-pulse' : run.conclusion === 'success' ? 'bg-success' : run.conclusion === 'failure' ? 'bg-danger' : 'bg-txt-muted'"></span>
                                     <span class="text-[13px] font-medium flex-1">#<span x-text="run.run_number"></span></span>
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-txt-muted" x-text="run.event === 'workflow_dispatch' ? '▶️ Manual' : '⏰ Scheduled'"></span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-txt-muted" x-text="run.event === 'workflow_dispatch' ? 'Manual' : 'Scheduled'"></span>
                                     <span x-show="run.status === 'in_progress'" class="text-[10px] font-bold text-accent live-pulse">LIVE</span>
                                 </div>
                                 <div class="text-[11px] text-txt-muted mt-0.5 flex items-center gap-2">
                                     <span x-text="formatDate(run.created_at)"></span>
                                     <template x-if="run.conclusion">
-                                        <span>· <span x-text="run.conclusion === 'success' ? '✅' : run.conclusion === 'failure' ? '❌' : run.conclusion"></span></span>
+                                        <span>· <span x-html="run.conclusion === 'success' ? '<i data-lucide=&quot;check-circle-2&quot; class=&quot;inline-icon text-success&quot;></i>' : run.conclusion === 'failure' ? '<i data-lucide=&quot;x-circle&quot; class=&quot;inline-icon text-danger&quot;></i>' : run.conclusion"></span></span>
                                     </template>
                                     <template x-if="run._mentionCount !== undefined">
                                         <span>· <span x-text="run._mentionCount + ' mention(s)'" class="text-accent-light"></span></span>
@@ -490,7 +513,7 @@
                             </div>
                         </template>
                         <div x-show="mentionsRuns.length === 0 && !mentionsLoading" class="text-center py-8 text-txt-muted text-sm">
-                            <div class="text-2xl mb-2">📣</div>
+                            <div class="mb-2"><i data-lucide="at-sign" style="width:24px;height:24px;color:var(--accent)"></i></div>
                             <p>No mention checks found</p>
                         </div>
                     </div>
@@ -512,9 +535,9 @@
             <div x-show="page === 'agent' || page === 'schedule' || page === 'settings'" x-cloak class="flex-1 flex flex-col overflow-hidden animate-in">
                 <!-- Sub-tabs (mobile only) -->
                 <div class="flex lg:hidden items-center gap-1 p-3 border-b border-border">
-                    <button @click="navigate('agent')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'agent' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">🤖 Agent</button>
-                    <button @click="navigate('schedule')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'schedule' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">📅 Schedule</button>
-                    <button @click="navigate('settings')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'settings' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">⚙️ Settings</button>
+                    <button @click="navigate('agent')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'agent' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="bot" class="inline-icon"></i> Agent</button>
+                    <button @click="navigate('schedule')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'schedule' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="calendar-clock" class="inline-icon"></i> Schedule</button>
+                    <button @click="navigate('settings')" class="text-xs font-medium px-3 py-1.5 rounded-md" :class="page === 'settings' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="settings" class="inline-icon"></i> Settings</button>
                     <button @click="refreshPage()" class="ml-auto text-xs text-txt-muted hover:text-txt px-2 py-1.5 rounded hover:bg-bg-hover">↻</button>
                 </div>
 
@@ -525,7 +548,7 @@
                             <h4 class="text-sm font-semibold">System Prompt</h4>
                             <div class="flex gap-1">
                                 <button @click="promptView = 'edit'" class="text-[11px] px-2 py-1 rounded" :class="promptView === 'edit' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">✏️ Edit</button>
-                                <button @click="promptView = 'preview'; renderPromptPreview()" class="text-[11px] px-2 py-1 rounded" :class="promptView === 'preview' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'">👁 Preview</button>
+                                <button @click="promptView = 'preview'; renderPromptPreview()" class="text-[11px] px-2 py-1 rounded" :class="promptView === 'preview' ? 'bg-accent text-white' : 'text-txt-muted hover:bg-bg-hover'"><i data-lucide="eye" class="inline-icon"></i> Preview</button>
                             </div>
                         </div>
                         <textarea x-show="promptView === 'edit'" x-model="agentConfig.systemPrompt" class="w-full bg-bg-input border border-border rounded-lg p-3 text-sm text-txt font-mono resize-y min-h-[120px] max-h-[50vh] focus:outline-none focus:border-accent" rows="6"></textarea>
@@ -593,21 +616,21 @@
                                 <div @click="selectJob(jobId)" class="px-4 py-3 border-b border-border-muted cursor-pointer hover:bg-bg-hover transition-colors"
                                     :class="selectedJob === jobId ? 'bg-accent-subtle border-l-2 border-l-accent' : ''">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-[13px] font-medium" :class="job.enabled !== false ? '' : 'text-txt-muted'" x-text="(job.workflow?.includes('thor') ? '🤖' : job.workflow?.includes('isaac') ? '🎮' : '🖥️') + ' ' + jobId"></span>
+                                        <span class="text-[13px] font-medium" :class="job.enabled !== false ? '' : 'text-txt-muted'" x-html="'<i data-lucide=&quot;' + (job.workflow?.includes('thor') ? 'cpu' : job.workflow?.includes('isaac') ? 'gamepad-2' : 'monitor') + '&quot; class=&quot;inline-icon&quot;></i> ' + jobId"></span>
                                         <span class="text-[10px] px-1.5 py-0.5 rounded" :class="job.enabled !== false ? 'bg-success-muted text-success' : 'bg-bg-hover text-txt-muted'" x-text="job.enabled !== false ? 'ON' : 'OFF'"></span>
                                     </div>
                                     <div class="text-[11px] text-txt-muted mt-0.5" x-text="(job.cron || job.run_at || '-') + ' · ' + (job.workflow || 'agent.yml')"></div>
                                 </div>
                             </template>
                             <div x-show="Object.keys(scheduleData.jobs || {}).length === 0" class="text-center py-8 text-txt-muted text-sm">
-                                <div class="text-2xl mb-2">📅</div>No scheduled jobs
+                                <div class="mb-2"><i data-lucide="calendar-clock" style="width:24px;height:24px;color:var(--accent)"></i></div>No scheduled jobs
                             </div>
                             <div class="p-3">
                                 <button @click="showAddJob = true" class="w-full text-sm font-medium py-2 rounded-lg bg-accent hover:bg-accent-light text-white transition-colors">+ Add Job</button>
                             </div>
                         </div>
                         <div x-show="!isMobile()" class="hidden lg:block flex-1 overflow-y-auto p-4">
-                            <div x-show="!selectedJob" class="text-center py-16 text-txt-muted text-sm"><div class="text-2xl mb-2">📅</div>Select a job</div>
+                            <div x-show="!selectedJob" class="text-center py-16 text-txt-muted text-sm"><div class="mb-2"><i data-lucide="calendar-clock" style="width:24px;height:24px;color:var(--accent)"></i></div>Select a job</div>
                             <div x-show="selectedJob" x-html="jobDetailHtml"></div>
                         </div>
                     </div>
@@ -655,7 +678,7 @@
         <template x-for="item in mobileNavItems" :key="item.id">
             <button @click="navigate(item.id)" class="flex-1 flex flex-col items-center gap-0.5 py-2.5 relative transition-colors"
                 :class="mobileNavActive(item.id) ? 'text-accent' : 'text-txt-muted'">
-                <span x-text="item.icon" class="text-lg"></span>
+                <span class="nav-icon-lg"><i :data-lucide="item.icon"></i></span>
                 <span x-text="item.label" class="text-[10px] font-medium"></span>
                 <span x-show="item.id === 'home' && warningCount > 0" class="absolute top-1 right-1/4 w-3.5 h-3.5 rounded-full bg-danger text-[9px] font-bold flex items-center justify-center text-white" x-text="warningCount"></span>
                 <span x-show="item.id === 'runs' && runningCount > 0" class="absolute top-1 right-1/4 w-3.5 h-3.5 rounded-full bg-accent text-[9px] font-bold flex items-center justify-center text-white live-pulse" x-text="runningCount"></span>
@@ -760,17 +783,17 @@
 
             // ===== NAVIGATION =====
             sidebarItems: [
-                { id: 'home', icon: '📊', label: 'Home' }, { id: 'issues', icon: '📋', label: 'Issues' },
-                { id: 'runs', icon: '⚡', label: 'Runs' }, { id: 'activity', icon: '📊', label: 'Activity' },
-                { id: 'wild', icon: '🌍', label: 'Wild' }, { id: 'traces', icon: '📈', label: 'Traces' },
-                { id: 'mentions', icon: '📣', label: 'Mentions' },
-                { id: 'agent', icon: '🤖', label: 'Agent' }, { id: 'schedule', icon: '📅', label: 'Schedule' },
-                { id: 'settings', icon: '⚙️', label: 'Settings' }
+                { id: 'home', icon: 'layout-dashboard', label: 'Home' }, { id: 'issues', icon: 'circle-dot', label: 'Issues' },
+                { id: 'runs', icon: 'play', label: 'Runs' }, { id: 'activity', icon: 'activity', label: 'Activity' },
+                { id: 'wild', icon: 'globe', label: 'Wild' }, { id: 'traces', icon: 'scan-search', label: 'Traces' },
+                { id: 'mentions', icon: 'at-sign', label: 'Mentions' },
+                { id: 'agent', icon: 'bot', label: 'Agent' }, { id: 'schedule', icon: 'calendar-clock', label: 'Schedule' },
+                { id: 'settings', icon: 'settings', label: 'Settings' }
             ],
             mobileNavItems: [
-                { id: 'home', icon: '🏠', label: 'Home' }, { id: 'issues', icon: '📋', label: 'Issues' },
-                { id: 'runs', icon: '⚡', label: 'Runs' }, { id: 'activity', icon: '👁', label: 'Watch' },
-                { id: 'agent', icon: '⚙', label: 'Config' }
+                { id: 'home', icon: 'layout-dashboard', label: 'Home' }, { id: 'issues', icon: 'circle-dot', label: 'Issues' },
+                { id: 'runs', icon: 'play', label: 'Runs' }, { id: 'activity', icon: 'activity', label: 'Watch' },
+                { id: 'agent', icon: 'bot', label: 'Config' }
             ],
             mobileNavActive(id) {
                 if (id === 'activity') return ['activity', 'wild', 'traces', 'mentions'].includes(this.page);
@@ -830,9 +853,9 @@
             },
             cleanLogs(logs) { return logs.replace(/\[(\d+;)*\d+m/g, '').replace(/##\[group\].*?\n/g, '').replace(/##\[endgroup\]\n/g, '').replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z /gm, ''); },
 
-            getEventIcon(event) { return { issues: '📋', issue_comment: '💬', pull_request: '🔀', pull_request_review: '✅', workflow_dispatch: '▶️', schedule: '⏰', repository_dispatch: '📡', push: '📦' }[event] || '⚡'; },
+            getEventIcon(event) { return { issues: '<i data-lucide="circle-dot" class="inline-icon"></i>', issue_comment: '<i data-lucide="message-circle" class="inline-icon"></i>', pull_request: '<i data-lucide="git-pull-request" class="inline-icon"></i>', pull_request_review: '<i data-lucide="check-circle" class="inline-icon"></i>', workflow_dispatch: '<i data-lucide="play-circle" class="inline-icon"></i>', schedule: '<i data-lucide="clock" class="inline-icon"></i>', repository_dispatch: '<i data-lucide="radio" class="inline-icon"></i>', push: '<i data-lucide="upload" class="inline-icon"></i>' }[event] || '<i data-lucide="zap" class="inline-icon"></i>'; },
             formatEventName(event) { return { issues: 'Issue', issue_comment: 'Comment', pull_request: 'PR', pull_request_review: 'Review', workflow_dispatch: 'Manual', schedule: 'Scheduled', repository_dispatch: 'Dispatch', push: 'Push' }[event] || event; },
-            getActivityIcon(type) { return { IssueCommentEvent: '💬', PullRequestReviewEvent: '✅', PullRequestReviewCommentEvent: '💭', IssuesEvent: '🎫', PullRequestEvent: '🔀', CommitCommentEvent: '📝', CreateEvent: '➕', DeleteEvent: '🗑️', PushEvent: '⬆️' }[type] || '📌'; },
+            getActivityIcon(type) { return { IssueCommentEvent: '<i data-lucide="message-circle" class="inline-icon"></i>', PullRequestReviewEvent: '<i data-lucide="check-circle" class="inline-icon"></i>', PullRequestReviewCommentEvent: '<i data-lucide="message-square" class="inline-icon"></i>', IssuesEvent: '<i data-lucide="circle-dot" class="inline-icon"></i>', PullRequestEvent: '<i data-lucide="git-pull-request" class="inline-icon"></i>', CommitCommentEvent: '<i data-lucide="file-text" class="inline-icon"></i>', CreateEvent: '<i data-lucide="plus-circle" class="inline-icon"></i>', DeleteEvent: '<i data-lucide="trash-2" class="inline-icon"></i>', PushEvent: '<i data-lucide="arrow-up-circle" class="inline-icon"></i>' }[type] || '<i data-lucide="pin" class="inline-icon"></i>'; },
             getActivityBgStyle(repo) {
                 const owner = (repo || '').split('/')[0].toLowerCase();
                 if (['agent-of-mkmeral', 'mkmeral'].includes(owner)) return 'background-color: rgba(99,102,241,0.06); border-left: 2px solid rgba(99,102,241,0.3)';
@@ -1061,7 +1084,7 @@
                     </div>
                     <div class="markdown-body mb-4">${bodyHtml}</div>
                     <div class="border-t border-border pt-4">
-                        <h4 class="text-sm font-semibold text-txt-secondary mb-3">💬 Comments (${issue.comments_data?.length || 0})</h4>
+                        <h4 class="text-sm font-semibold text-txt-secondary mb-3"><i data-lucide="message-circle" class="inline-icon"></i> Comments (${issue.comments_data?.length || 0})</h4>
                         ${comments}
                         <div class="mt-3 space-y-2">
                             <textarea id="commentInput_${issue.number}" class="w-full bg-bg-input border border-border rounded-lg p-3 text-sm text-txt resize-y min-h-[60px] focus:outline-none focus:border-accent" rows="2" placeholder="Add comment... (⌘/Ctrl+Enter)"></textarea>
@@ -1172,14 +1195,14 @@
                     if (agentStart && agentEnd) agentLogs = fullLogs.slice(fullLogs.indexOf(agentStart[0]), fullLogs.indexOf(agentEnd[0]) + agentEnd[0].length);
 
                     let html = `<div class="flex flex-wrap gap-2 mb-3 p-2.5 bg-bg-card border border-border rounded-lg text-[11px] text-txt-muted">
-                        <span>⏱ ${duration}</span>${toolsMatch ? `<span>· 🔧 ${toolsMatch[1]} tools</span>` : ''}${sessionMatch ? `<span>· 📎 ${this.truncate(sessionMatch[1],20)}</span>` : ''}${kbMatch ? '<span>· 🧠 KB</span>' : ''}${isSkipped ? '<span class="text-warning">· ⏭️ Skipped</span>' : ''}${isCancelled ? '<span class="text-warning">· 🚫 Cancelled</span>' : ''}
+                        <span><i data-lucide="timer" class="inline-icon"></i> ${duration}</span>${toolsMatch ? `<span>· <i data-lucide="wrench" class="inline-icon"></i> ${toolsMatch[1]} tools</span>` : ''}${sessionMatch ? `<span>· <i data-lucide="link" class="inline-icon"></i> ${this.truncate(sessionMatch[1],20)}</span>` : ''}${kbMatch ? '<span>· <i data-lucide="brain" class="inline-icon"></i> KB</span>' : ''}${isSkipped ? '<span class="text-warning">· <i data-lucide="skip-forward" class="inline-icon"></i> Skipped</span>' : ''}${isCancelled ? '<span class="text-warning">· <i data-lucide="ban" class="inline-icon"></i> Cancelled</span>' : ''}
                         <a href="${this.currentAction.html_url}" target="_blank" class="text-accent hover:underline ml-auto">↗ GitHub</a></div>`;
 
                     // Show appropriate messages based on run state
                     const noOutputMsg = isSkipped
-                        ? `⏭️ Run skipped — ${skipReason ? skipReason[1].trim() : 'self-trigger protection prevented infinite loop'}\n\nThis is normal: when the agent posts a comment, GitHub fires a new workflow run which is automatically skipped to prevent infinite loops.`
+                        ? `Run skipped — ${skipReason ? skipReason[1].trim() : 'self-trigger protection prevented infinite loop'}\n\nThis is normal: when the agent posts a comment, GitHub fires a new workflow run which is automatically skipped to prevent infinite loops.`
                         : isCancelled
-                        ? '🚫 Run was cancelled before the agent produced output.'
+                        ? 'Run was cancelled before the agent produced output.'
                         : this.currentAction.status === 'in_progress'
                         ? '(waiting for agent output...)'
                         : '(not found in logs — see Full Logs below)';
@@ -1188,8 +1211,8 @@
                     const logLines = agentLogs.split('\n').filter(l => l.trim()).map(l => { const cls = /error|fail|❌/i.test(l) ? 'text-danger' : /success|✓|✅/i.test(l) ? 'text-success' : ''; return `<div class="text-[12px] font-mono py-0.5 ${cls}">${this.escapeHtml(l.trim())}</div>`; }).join('');
                     html += this.buildLogStepRaw('📜', 'Full Logs', logLines, false);
                     if (job.steps?.length) {
-                        const stepsHtml = job.steps.map(s => { const icon = s.conclusion === 'success' ? '✅' : s.conclusion === 'failure' ? '❌' : '⏳'; const dur = s.completed_at && s.started_at ? this.formatDuration(new Date(s.completed_at) - new Date(s.started_at)) : ''; return `<div class="text-[12px] font-mono py-0.5 ${s.conclusion === 'failure' ? 'text-danger' : ''}">${icon} ${this.escapeHtml(s.name)} <span class="text-txt-muted ml-2">${dur}</span></div>`; }).join('');
-                        html += this.buildLogStepRaw('⚙️', 'Workflow Steps', stepsHtml, false);
+                        const stepsHtml = job.steps.map(s => { const icon = s.conclusion === 'success' ? '<i data-lucide="check-circle-2" class="inline-icon text-success"></i>' : s.conclusion === 'failure' ? '<i data-lucide="x-circle" class="inline-icon text-danger"></i>' : '<i data-lucide="loader" class="inline-icon"></i>'; const dur = s.completed_at && s.started_at ? this.formatDuration(new Date(s.completed_at) - new Date(s.started_at)) : ''; return `<div class="text-[12px] font-mono py-0.5 ${s.conclusion === 'failure' ? 'text-danger' : ''}">${icon} ${this.escapeHtml(s.name)} <span class="text-txt-muted ml-2">${dur}</span></div>`; }).join('');
+                        html += this.buildLogStepRaw('<i data-lucide="settings" class="inline-icon"></i>', 'Workflow Steps', stepsHtml, false);
                     }
                     this.logsHtml = html;
                 } catch (e) { this.logsHtml = `<p class="text-danger text-center py-8">${e.message}</p>`; }
@@ -1281,12 +1304,12 @@
                 items.forEach(item => { const repo = (item.repository_url || '').replace('https://api.github.com/repos/', ''); if (!byRepo[repo]) byRepo[repo] = []; byRepo[repo].push(item); });
                 let html = '';
                 for (const [repo, repoItems] of Object.entries(byRepo).sort((a, b) => b[1].length - a[1].length)) {
-                    html += `<div class="mb-4"><div class="text-sm font-semibold mb-2 flex items-center gap-2">📦 <a href="https://github.com/${repo}" target="_blank" class="text-txt hover:text-accent">${repo}</a><span class="text-[10px] bg-bg-hover rounded-full px-2 py-0.5 text-txt-muted">${repoItems.length}</span></div>`;
+                    html += `<div class="mb-4"><div class="text-sm font-semibold mb-2 flex items-center gap-2"><i data-lucide="package" class="inline-icon"></i> <a href="https://github.com/${repo}" target="_blank" class="text-txt hover:text-accent">${repo}</a><span class="text-[10px] bg-bg-hover rounded-full px-2 py-0.5 text-txt-muted">${repoItems.length}</span></div>`;
                     html += `<div class="bg-bg-card border border-border rounded-lg overflow-hidden">`;
                     for (const item of repoItems) {
                         html += `<div onclick="window.open('${item.html_url}', '_blank')" class="px-3 py-2.5 border-b border-border-muted last:border-0 cursor-pointer hover:bg-bg-hover">
-                            <div class="text-[13px] font-medium">${item._type === 'pr' ? '🔀' : '🎫'} #${item.number} ${this.escapeHtml(item.title)}</div>
-                            <div class="text-[11px] text-txt-muted mt-0.5">${item.draft ? 'Draft' : 'Open'} · Updated ${this.formatDate(item.updated_at)} · 💬 ${item.comments || 0}</div></div>`;
+                            <div class="text-[13px] font-medium">${item._type === 'pr' ? '<i data-lucide="git-pull-request" class="inline-icon"></i>' : '<i data-lucide="circle-dot" class="inline-icon"></i>'} #${item.number} ${this.escapeHtml(item.title)}</div>
+                            <div class="text-[11px] text-txt-muted mt-0.5">${item.draft ? 'Draft' : 'Open'} · Updated ${this.formatDate(item.updated_at)} · <i data-lucide="message-circle" class="inline-icon"></i> ${item.comments || 0}</div></div>`;
                     }
                     html += '</div></div>';
                 }
@@ -1305,7 +1328,7 @@
                 const job = this.scheduleData.jobs[jobId];
                 if (!job) return;
                 const wf = job.workflow || 'agent.yml';
-                const wfIcon = wf.includes('thor') ? '🤖' : wf.includes('isaac') ? '🎮' : wf.includes('/') ? '🌐' : '🖥️';
+                const wfIcon = '<i data-lucide="' + (wf.includes('thor') ? 'cpu' : wf.includes('isaac') ? 'gamepad-2' : wf.includes('/') ? 'globe' : 'monitor') + '" class="inline-icon"></i>';
                 this.jobDetailHtml = `
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-base font-semibold">${wfIcon} ${this.escapeHtml(jobId)}</h4>
@@ -2067,7 +2090,7 @@
                     html += `<div class="flex flex-wrap gap-1.5 mb-3">`;
                     for (const tn of toolNames) {
                         const count = toolSpans.filter(s => this.getToolName(s) === tn).length;
-                        html += `<span class="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium whitespace-nowrap">🔧 ${esc(tn)}${count > 1 ? ` ×${count}` : ''}</span>`;
+                        html += `<span class="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium whitespace-nowrap"><i data-lucide="wrench" class="inline-icon"></i> ${esc(tn)}${count > 1 ? ` ×${count}` : ''}</span>`;
                     }
                     html += `</div>`;
                 }
@@ -2094,7 +2117,7 @@
                             const dur = this.spanDuration(node);
                             const durMs = this.spanDurationMs(node);
                             const pct = Math.min(100, Math.max(2, (durMs / maxDurMs) * 100));
-                            const icons = { agent: '🤖', model: '🧠', tool: '🔧', cycle: '🔄', span: '📍', multiagent: '👥' };
+                            const icons = { agent: '<i data-lucide="bot" class="inline-icon"></i>', model: '<i data-lucide="brain" class="inline-icon"></i>', tool: '<i data-lucide="wrench" class="inline-icon"></i>', cycle: '<i data-lucide="refresh-cw" class="inline-icon"></i>', span: '<i data-lucide="map-pin" class="inline-icon"></i>', multiagent: '<i data-lucide="users" class="inline-icon"></i>' };
                             const colors = { agent: '#818cf8', model: '#6366f1', tool: '#22c55e', cycle: '#f59e0b', span: '#71717a', multiagent: '#a78bfa' };
                             const icon = icons[node.type] || '•';
                             const color = colors[node.type] || '#71717a';
@@ -2172,7 +2195,7 @@
                     return ta - tb;
                 });
 
-                html += `<div class="text-[11px] font-semibold text-txt-muted uppercase mb-2">💬 Timeline</div>`;
+                html += `<div class="text-[11px] font-semibold text-txt-muted uppercase mb-2"><i data-lucide="message-circle" class="inline-icon"></i> Timeline</div>`;
 
                 if (timeline.length === 0 && spans.length > 0) {
                     // Fallback: show all spans as simple cards
@@ -2204,7 +2227,7 @@
                             const tokenInfo = (m.callIn || m.callOut) ? `${m.callIn.toLocaleString()}→${m.callOut.toLocaleString()} tok` : '';
                             html += `<details class="border border-indigo-500/20 rounded-lg overflow-hidden">`;
                             html += `<summary class="px-3 py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer flex items-center gap-2 min-w-0">`;
-                            html += `<span class="text-[11px] shrink-0">🧠</span>`;
+                            html += `<span class="text-[11px] shrink-0"><i data-lucide="brain" class="inline-icon"></i></span>`;
                             html += `<span class="text-[12px] font-semibold text-indigo-400 shrink-0">LLM #${step}</span>`;
                             html += `<span class="flex-1"></span>`;
                             html += `<span class="text-[10px] text-txt-muted flex items-center gap-1.5 shrink-0 flex-wrap justify-end">`;
@@ -2216,7 +2239,7 @@
                             // Extra metrics
                             if (m.ttft || m.latency) {
                                 html += `<div class="flex gap-2 text-[10px] text-txt-muted flex-wrap">`;
-                                if (m.ttft) html += `<span class="bg-bg-card rounded px-1.5 py-0.5">⚡ ${m.ttft}</span>`;
+                                if (m.ttft) html += `<span class="bg-bg-card rounded px-1.5 py-0.5"><i data-lucide="zap" class="inline-icon"></i> ${m.ttft}</span>`;
                                 if (m.latency) html += `<span class="bg-bg-card rounded px-1.5 py-0.5">⏱ ${m.latency}</span>`;
                                 html += `</div>`;
                             }
@@ -2263,7 +2286,7 @@
                             const borderColor = t.isError ? 'border-red-500/20' : 'border-emerald-500/20';
                             const bgColor = t.isError ? 'bg-red-500/5 hover:bg-red-500/10' : 'bg-emerald-500/5 hover:bg-emerald-500/10';
                             const nameColor = t.isError ? 'text-red-400' : 'text-emerald-400';
-                            const icon = t.isError ? '❌' : '🔧';
+                            const icon = t.isError ? '<i data-lucide="x-circle" class="inline-icon text-danger"></i>' : '<i data-lucide="wrench" class="inline-icon"></i>';
 
                             html += `<details class="border ${borderColor} rounded-lg overflow-hidden">`;
                             html += `<summary class="px-3 py-2.5 ${bgColor} cursor-pointer flex items-center gap-2 min-w-0">`;
@@ -2309,7 +2332,7 @@
                             if (item.prompt || item.completion) {
                                 html += `<details class="border border-indigo-500/20 rounded-lg overflow-hidden">`;
                                 html += `<summary class="px-3 py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer flex items-center gap-2">`;
-                                html += `<span class="text-[11px]">🧠</span><span class="text-[12px] font-semibold text-indigo-400">Inference</span></summary>`;
+                                html += `<span class="text-[11px]"><i data-lucide="brain" class="inline-icon"></i></span><span class="text-[12px] font-semibold text-indigo-400">Inference</span></summary>`;
                                 html += `<div class="p-3 space-y-2 bg-bg">`;
                                 if (item.prompt) html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Prompt</div><div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(String(item.prompt).slice(0, 2000))}</div></div>`;
                                 if (item.completion) html += `<div><div class="text-[10px] text-txt-muted uppercase font-semibold mb-1">Completion</div><div class="text-[11px] text-txt-secondary font-mono whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-bg-card rounded-lg p-2 border border-border-muted">${esc(String(item.completion).slice(0, 2000))}</div></div>`;
@@ -2322,7 +2345,7 @@
                             if (hasInput || hasOutput) {
                                 html += `<details open class="border border-purple-500/20 rounded-lg overflow-hidden">`;
                                 html += `<summary class="px-3 py-2.5 bg-purple-500/5 hover:bg-purple-500/10 cursor-pointer flex items-center gap-2 min-w-0">`;
-                                html += `<span class="text-[11px]">💬</span>`;
+                                html += `<span class="text-[11px]"><i data-lucide="message-circle" class="inline-icon"></i></span>`;
                                 html += `<span class="text-[12px] font-semibold text-purple-400">Conversation</span>`;
                                 html += `<span class="flex-1"></span>`;
                                 const msgCount = (item.inputMsgs?.length || 0) + (item.outputMsgs?.length || 0);
@@ -2359,7 +2382,7 @@
                 // ===== RAW SPANS (collapsed) =====
                 if (spans.length > 0) {
                     html += `<details class="border border-border rounded-lg overflow-hidden">`;
-                    html += `<summary class="px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer text-[11px] font-semibold text-txt-muted uppercase flex items-center gap-1.5">📋 Raw Spans <span class="font-normal">(${spans.length})</span></summary>`;
+                    html += `<summary class="px-3 py-2 bg-bg-card hover:bg-bg-hover cursor-pointer text-[11px] font-semibold text-txt-muted uppercase flex items-center gap-1.5"><i data-lucide="list" class="inline-icon"></i> Raw Spans <span class="font-normal">(${spans.length})</span></summary>`;
                     html += `<div class="max-h-[50vh] overflow-y-auto p-2 space-y-1">`;
                     for (const s of spans) {
                         const a = s.attrs || {};
@@ -2403,7 +2426,7 @@
                     if (this.mentionsRuns.length > 0) {
                         const latest = this.mentionsRuns[0];
                         this.mentionsLastCheck = this.formatDate(latest.created_at);
-                        this.mentionsLastStatus = (latest.status === 'in_progress' || latest.status === 'queued') ? '🔄 Running' : latest.conclusion === 'success' ? '✅ OK' : latest.conclusion === 'failure' ? '❌ Failed' : latest.conclusion === 'cancelled' ? '🚫 Cancelled' : '⏳ Pending';
+                        this.mentionsLastStatus = (latest.status === 'in_progress' || latest.status === 'queued') ? 'Running' : latest.conclusion === 'success' ? 'OK' : latest.conclusion === 'failure' ? 'Failed' : latest.conclusion === 'cancelled' ? 'Cancelled' : 'Pending';
                     }
                 } catch (e) { if (!silent) this.showToast('Mentions error: ' + e.message); }
                 if (!silent) this.mentionsLoading = false;
@@ -2417,7 +2440,7 @@
                         body: JSON.stringify({ ref: 'main', inputs: { debug: 'true' } })
                     });
                     if (!res.ok && res.status !== 204) throw new Error(`API: ${res.status}`);
-                    this.showToast('📣 Mentions check triggered!');
+                    this.showToast('Mentions check triggered!');
                     setTimeout(() => { this.pagesLoaded.mentions = false; this.loadMentions(); }, 5000);
                 } catch (e) { this.showToast('Error: ' + e.message); }
                 this.mentionsTriggering = false;
@@ -2434,7 +2457,7 @@
                     if (!logsRes.ok) {
                         // Show steps if logs unavailable
                         const stepsHtml = (job.steps || []).map(s => {
-                            const icon = s.conclusion === 'success' ? '✅' : s.conclusion === 'failure' ? '❌' : s.conclusion === 'skipped' ? '⏭️' : '⏳';
+                            const icon = s.conclusion === 'success' ? '<i data-lucide="check-circle-2" class="inline-icon text-success"></i>' : s.conclusion === 'failure' ? '<i data-lucide="x-circle" class="inline-icon text-danger"></i>' : s.conclusion === 'skipped' ? '<i data-lucide="skip-forward" class="inline-icon"></i>' : '<i data-lucide="loader" class="inline-icon"></i>';
                             return `<div class="text-[12px] font-mono py-0.5 ${s.conclusion === 'failure' ? 'text-danger' : 'text-txt-secondary'}">${icon} ${this.escapeHtml(s.name)}</div>`;
                         }).join('');
                         this.mentionsRunLogsHtml = stepsHtml || '<p class="text-txt-muted text-sm">Logs not available</p>';
@@ -2450,7 +2473,7 @@
                     let html = '';
                     // Summary
                     if (noMentions) {
-                        html += '<div class="bg-bg border border-border rounded-lg p-3 mb-3 text-center"><span class="text-2xl">✅</span><div class="text-sm font-medium mt-1">No new mentions</div></div>';
+                        html += '<div class="bg-bg border border-border rounded-lg p-3 mb-3 text-center"><i data-lucide="check-circle-2" style="width:24px;height:24px;color:var(--success)"></i><div class="text-sm font-medium mt-1">No new mentions</div></div>';
                     } else if (mentionCountMatch) {
                         html += `<div class="bg-accent-subtle border border-accent/15 rounded-lg p-3 mb-3"><div class="text-sm font-semibold text-accent-light">📬 ${mentionCountMatch[1]} mention(s) found</div></div>`;
                     }
@@ -2486,20 +2509,27 @@
                 const ALLOWED = ['agent-of-mkmeral', 'strands-agents', 'strands-labs', 'mkmeral'];
                 const ext = this.activityData.external_events || [];
                 const unauth = ext.filter(e => !ALLOWED.some(o => o.toLowerCase() === (e.repo || '').split('/')[0].toLowerCase()));
-                if (unauth.length > 0) { const repos = [...new Set(unauth.map(e => e.repo))]; w.push({ level: 'critical', icon: '🚨', title: 'Unauthorized Repository Interaction', description: `Agent performed ${unauth.length} action(s) in ${repos.length} unauthorized repo(s)`, details: repos.slice(0, 5).join(', ') }); }
-                if (ext.length >= 30) w.push({ level: 'critical', icon: '🛑', title: 'Daily Throttle Limit Exceeded', description: `${ext.length}/30 external actions used`, details: null });
-                else if (ext.length >= 24) w.push({ level: 'warning', icon: '⚠️', title: 'Approaching Throttle Limit', description: `${ext.length}/30 external actions (${Math.round(ext.length / 30 * 100)}%)`, details: null });
+                if (unauth.length > 0) { const repos = [...new Set(unauth.map(e => e.repo))]; w.push({ level: 'critical', icon: '<i data-lucide="shield-alert" class="inline-icon"></i>', title: 'Unauthorized Repository Interaction', description: `Agent performed ${unauth.length} action(s) in ${repos.length} unauthorized repo(s)`, details: repos.slice(0, 5).join(', ') }); }
+                if (ext.length >= 30) w.push({ level: 'critical', icon: '<i data-lucide="octagon" class="inline-icon"></i>', title: 'Daily Throttle Limit Exceeded', description: `${ext.length}/30 external actions used`, details: null });
+                else if (ext.length >= 24) w.push({ level: 'warning', icon: '<i data-lucide="alert-triangle" class="inline-icon"></i>', title: 'Approaching Throttle Limit', description: `${ext.length}/30 external actions (${Math.round(ext.length / 30 * 100)}%)`, details: null });
                 let consecutive = 0; for (const a of this.actions) { if (a.conclusion === 'failure') consecutive++; else break; }
-                if (consecutive >= 3) w.push({ level: 'warning', icon: '💥', title: `${consecutive} Consecutive Failed Actions`, description: 'Agent may be stuck or misconfigured', details: null });
-                for (const a of this.actions.filter(a => a.status === 'in_progress')) { if ((Date.now() - new Date(a.created_at)) / 60000 > 45) w.push({ level: 'warning', icon: '⏱️', title: 'Long-Running Action', description: `#${a.run_number} running for ${Math.round((Date.now() - new Date(a.created_at)) / 60000)}m`, details: null }); }
+                if (consecutive >= 3) w.push({ level: 'warning', icon: '<i data-lucide="flame" class="inline-icon"></i>', title: `${consecutive} Consecutive Failed Actions`, description: 'Agent may be stuck or misconfigured', details: null });
+                for (const a of this.actions.filter(a => a.status === 'in_progress')) { if ((Date.now() - new Date(a.created_at)) / 60000 > 45) w.push({ level: 'warning', icon: '<i data-lucide="timer" class="inline-icon"></i>', title: 'Long-Running Action', description: `#${a.run_number} running for ${Math.round((Date.now() - new Date(a.created_at)) / 60000)}m`, details: null }); }
                 const stale = [...this.wildPRs, ...this.wildIssues].filter(i => (Date.now() - new Date(i.updated_at)) > 604800000);
-                if (stale.length) w.push({ level: 'info', icon: '📌', title: `${stale.length} Stale External Item(s)`, description: '7+ days without update', details: null });
-                if (this.actions.length >= 5) { const recent = this.actions.slice(0, 10).filter(a => a.conclusion); const fails = recent.filter(a => a.conclusion === 'failure').length; if (recent.length >= 5 && fails / recent.length > 0.5) w.push({ level: 'warning', icon: '📉', title: 'High Failure Rate', description: `${fails}/${recent.length} recent runs failed`, details: null }); }
+                if (stale.length) w.push({ level: 'info', icon: '<i data-lucide="pin" class="inline-icon"></i>', title: `${stale.length} Stale External Item(s)`, description: '7+ days without update', details: null });
+                if (this.actions.length >= 5) { const recent = this.actions.slice(0, 10).filter(a => a.conclusion); const fails = recent.filter(a => a.conclusion === 'failure').length; if (recent.length >= 5 && fails / recent.length > 0.5) w.push({ level: 'warning', icon: '<i data-lucide="trending-down" class="inline-icon"></i>', title: 'High Failure Rate', description: `${fails}/${recent.length} recent runs failed`, details: null }); }
                 this.warnings = w;
                 this.warningCount = w.filter(x => x.level === 'critical' || x.level === 'warning').length;
             }
         };
     }
     </script>
+<script>
+        // Initialize Lucide icons after Alpine hydration
+        document.addEventListener('alpine:initialized', () => { if (window.lucide) lucide.createIcons(); });
+        // Also re-init on any Alpine morph/update 
+        const _lucideObserver = new MutationObserver(() => { if (window.lucide) lucide.createIcons(); });
+        _lucideObserver.observe(document.body, { childList: true, subtree: true });
+</script>
 </body>
 </html>
