@@ -346,9 +346,9 @@
                     <div class="bg-bg-card border border-border rounded-lg p-4 mb-4">
                         <div class="grid grid-cols-4 gap-4 mb-3">
                             <div><div class="text-[11px] text-txt-muted">External</div><div class="text-2xl font-bold" x-text="activityData.external_events?.length || 0"></div></div>
-                            <div><div class="text-[11px] text-txt-muted">Limit</div><div class="text-2xl font-bold">30</div></div>
-                            <div><div class="text-[11px] text-txt-muted">Remaining</div><div class="text-2xl font-bold" x-text="Math.max(0, 30 - (activityData.external_events?.length || 0))"></div></div>
-                            <div><div class="text-[11px] text-txt-muted">Status</div><div class="text-lg font-bold" x-html="(activityData.external_events?.length || 0) >= 30 ? '<i data-lucide=&quot;octagon&quot; class=&quot;inline-icon&quot;></i>' : '<i data-lucide=&quot;check-circle&quot; class=&quot;inline-icon&quot;></i>'" :class="(activityData.external_events?.length || 0) >= 30 ? 'text-danger' : 'text-success'"></div></div>
+                            <div><div class="text-[11px] text-txt-muted">Limit</div><div class="text-2xl font-bold">50</div></div>
+                            <div><div class="text-[11px] text-txt-muted">Remaining</div><div class="text-2xl font-bold" x-text="Math.max(0, 50 - (activityData.external_events?.length || 0))"></div></div>
+                            <div><div class="text-[11px] text-txt-muted">Status</div><div class="text-lg font-bold" x-html="(activityData.external_events?.length || 0) >= 50 ? '<i data-lucide=&quot;octagon&quot; class=&quot;inline-icon&quot;></i>' : '<i data-lucide=&quot;check-circle&quot; class=&quot;inline-icon&quot;></i>'" :class="(activityData.external_events?.length || 0) >= 50 ? 'text-danger' : 'text-success'"></div></div>
                         </div>
                         <div class="h-1 bg-border rounded-full overflow-hidden">
                             <div class="h-full rounded-full transition-all" :class="throttlePercent >= 100 ? 'bg-danger' : throttlePercent >= 80 ? 'bg-warning' : 'bg-accent'" :style="`width: ${Math.min(100, throttlePercent)}%`"></div>
@@ -808,7 +808,7 @@
             get successCount() { return this.actions.filter(a => a.conclusion === 'success' && !a._skipped).length; },
             get failedCount() { return this.actions.filter(a => a.conclusion === 'failure').length; },
             get skippedCount() { return this.actions.filter(a => a._skipped).length; },
-            get throttlePercent() { return ((this.activityData.external_events?.length || 0) / 30) * 100; },
+            get throttlePercent() { return ((this.activityData.external_events?.length || 0) / 50) * 100; },
             get filteredIssues() {
                 let items = this.issues;
                 if (this.issueFilterState === 'open') items = items.filter(i => i.state === 'open');
@@ -2510,8 +2510,8 @@
                 const ext = this.activityData.external_events || [];
                 const unauth = ext.filter(e => !ALLOWED.some(o => o.toLowerCase() === (e.repo || '').split('/')[0].toLowerCase()));
                 if (unauth.length > 0) { const repos = [...new Set(unauth.map(e => e.repo))]; w.push({ level: 'critical', icon: '<i data-lucide="shield-alert" class="inline-icon"></i>', title: 'Unauthorized Repository Interaction', description: `Agent performed ${unauth.length} action(s) in ${repos.length} unauthorized repo(s)`, details: repos.slice(0, 5).join(', ') }); }
-                if (ext.length >= 30) w.push({ level: 'critical', icon: '<i data-lucide="octagon" class="inline-icon"></i>', title: 'Daily Throttle Limit Exceeded', description: `${ext.length}/30 external actions used`, details: null });
-                else if (ext.length >= 24) w.push({ level: 'warning', icon: '<i data-lucide="alert-triangle" class="inline-icon"></i>', title: 'Approaching Throttle Limit', description: `${ext.length}/30 external actions (${Math.round(ext.length / 30 * 100)}%)`, details: null });
+                if (ext.length >= 50) w.push({ level: 'critical', icon: '<i data-lucide="octagon" class="inline-icon"></i>', title: 'Daily Throttle Limit Exceeded', description: `${ext.length}/50 external actions used`, details: null });
+                else if (ext.length >= 40) w.push({ level: 'warning', icon: '<i data-lucide="alert-triangle" class="inline-icon"></i>', title: 'Approaching Throttle Limit', description: `${ext.length}/50 external actions (${Math.round(ext.length / 50 * 100)}%)`, details: null });
                 let consecutive = 0; for (const a of this.actions) { if (a.conclusion === 'failure') consecutive++; else break; }
                 if (consecutive >= 3) w.push({ level: 'warning', icon: '<i data-lucide="flame" class="inline-icon"></i>', title: `${consecutive} Consecutive Failed Actions`, description: 'Agent may be stuck or misconfigured', details: null });
                 for (const a of this.actions.filter(a => a.status === 'in_progress')) { if ((Date.now() - new Date(a.created_at)) / 60000 > 45) w.push({ level: 'warning', icon: '<i data-lucide="timer" class="inline-icon"></i>', title: 'Long-Running Action', description: `#${a.run_number} running for ${Math.round((Date.now() - new Date(a.created_at)) / 60000)}m`, details: null }); }
