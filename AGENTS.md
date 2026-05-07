@@ -76,7 +76,7 @@ All configuration is stored in `localStorage` and managed via the Settings tab:
 | Key | localStorage Key | Description |
 |---|---|---|
 | GitHub Token | `gh_token` | Personal access token with `repo` scope |
-| Repository | `gh_repo` | Target repo (e.g., `agent-of-mkmeral/strands-coder`) |
+| Repository | `gh_repo` | Target repo (e.g., `agent-of-mkmeral/strands-coder-private`) |
 | Workflow | `gh_workflow` | Workflow filename (e.g., `agent.yml`) |
 | Project ID | `gh_project_id` | GitHub Projects v2 node ID (e.g., `PVT_kwHOAIyVLs4BMSWO`) |
 | Traces URL | `traces_url` | URL for Bedrock observability console (auto-loaded from repo variable `TRACES_URL`) |
@@ -168,7 +168,6 @@ Key variables: `--accent`, `--bg`, `--bg-card`, `--border`, `--text`, `--text-se
 | Repo | Relationship |
 |---|---|
 | `agent-of-mkmeral/strands-coder-private` | Private repo where the agent runs. Dashboard monitors this repo's issues, actions, variables. `TRACES_URL` is stored here. |
-| `agent-of-mkmeral/strands-coder` | Public agent repo (legacy). Dashboard defaults point here. |
 | `strands-agents/sdk-python` | The Strands Agents SDK that powers the agent. |
 | `strands-agents/tools` | Tool implementations used by the agent. |
 
